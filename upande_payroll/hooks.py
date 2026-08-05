@@ -23,6 +23,8 @@ fixtures = [
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
 				"custom_opt_out_of_housing_levy",
 				"custom_salary_expense_account",
+				"union_membership_section", "union_member", "union",
+				"payroll_earnings_section", "payroll_deductions_section",
 			]],
 		],
 	},
@@ -127,6 +129,7 @@ after_install = "upande_payroll.setup.after_migrate"
 doctype_js = {
 	"Gratuity": "public/js/gratuity.js",
 	"Leave Encashment": "public/js/leave_encashment.js",
+	"Payroll Entry": "public/js/payroll_entry.js",
 	"Salary Slip": "public/js/salary_slip.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}

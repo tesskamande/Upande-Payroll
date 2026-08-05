@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "creation": "2026-08-04 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "grouping",
+  "leave_type",
+  "basic_pay",
+  "daily_rate",
+  "leave_balance",
+  "liability"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Name",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "What the journal groups this line under.",
+   "fieldname": "grouping",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Group",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "leave_type",
+   "fieldtype": "Link",
+   "label": "Leave Type",
+   "options": "Leave Type",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "basic_pay",
+   "fieldtype": "Currency",
+   "label": "Basic Pay",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "daily_rate",
+   "fieldtype": "Currency",
+   "label": "Daily Rate",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "leave_balance",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Days",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "liability",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Liability",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-04 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Leave Provision Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

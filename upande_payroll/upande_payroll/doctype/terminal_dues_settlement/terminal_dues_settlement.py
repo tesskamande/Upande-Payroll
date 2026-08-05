@@ -31,6 +31,9 @@ class TerminalDuesSettlement(Document):
 		self._sync_days_worked_pay()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
+		# Statutory before PAYE: SHIF, the Housing Levy and NSSF all come off
+		# taxable pay, so the tax cannot be worked out until they are known.
+		self._sync_statutory()
 		self._sync_paye()
 		self._compute_totals()
 
@@ -96,6 +99,9 @@ class TerminalDuesSettlement(Document):
 		self._sync_days_worked_pay()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
+		# Statutory before PAYE: SHIF, the Housing Levy and NSSF all come off
+		# taxable pay, so the tax cannot be worked out until they are known.
+		self._sync_statutory()
 		self._sync_paye()
 		self._compute_totals()
 		self.save()
@@ -149,9 +155,20 @@ class TerminalDuesSettlement(Document):
 		Terminal Dues Basic Pay Component and Daily Rate Divisor."""
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
 		component = settings.terminal_dues_basic_pay_component
-		divisor = settings.terminal_dues_divisor or 26
+		divisor = flt(settings.terminal_dues_divisor)
 		if not component:
 			return 0.0, 0.0
+
+		# No quiet fallback. Guessing 26 here would hand back a daily rate that
+		# looks right and is not, and every figure derived from it - days
+		# worked, pay in lieu of notice - would be wrong without anything
+		# showing it. Better to stop and say the setting is missing.
+		if divisor <= 0:
+			frappe.throw(
+				_("Set a Daily Rate Divisor in Company Payroll Settings for {0} "
+				  "before working out terminal dues. It is what monthly basic pay "
+				  "is divided by to get a day's pay.").format(self.company)
+			)
 
 		salary_slip_name = frappe.db.get_value(
 			"Salary Slip",
@@ -159,14 +176,24 @@ class TerminalDuesSettlement(Document):
 			"name",
 			order_by="start_date desc",
 		)
-		if not salary_slip_name:
-			return 0.0, 0.0
 
-		monthly = flt(frappe.db.get_value(
-			"Salary Detail",
-			{"parent": salary_slip_name, "parentfield": "earnings", "salary_component": component},
-			"amount",
-		))
+		monthly = 0.0
+		if salary_slip_name:
+			monthly = flt(frappe.db.get_value(
+				"Salary Detail",
+				{"parent": salary_slip_name, "parentfield": "earnings",
+				 "salary_component": component},
+				"amount",
+			))
+
+		# Nothing on a payslip, so fall back to what the employee is on. Somebody
+		# who leaves before their first payroll runs, or who was never put
+		# through one, still has a rate on their record - and returning zero
+		# meant their days worked and notice pay silently came to nothing rather
+		# than saying anything was wrong.
+		if not monthly:
+			monthly = flt(frappe.db.get_value("Employee", self.employee, "basic_pay"))
+
 		if not monthly:
 			return 0.0, 0.0
 		return monthly, monthly / divisor
@@ -377,6 +404,75 @@ class TerminalDuesSettlement(Document):
 			"source_document": "",
 		})
 
+	def _statutory_base(self):
+		"""Taxable terminal earnings, gratuity aside.
+
+		Gratuity carries its own PAYE from the Gratuity record, spread over the
+		years it was earned in, so taxing it again here would double up. It is
+		also a terminal benefit rather than pensionable pay, which is why the
+		levies leave it alone too.
+		"""
+		return flt(sum(
+			flt(row.amount) for row in (self.earnings or [])
+			if row.is_taxable and not row.is_gratuity
+		), 2)
+
+	def _sync_statutory(self):
+		"""NSSF, SHIF and the Housing Levy, where the company deducts them.
+
+		Whether final dues attract the levies is not settled the same way
+		everywhere - notice pay in lieu in particular is treated as wages by some
+		employers and as compensation by others - so it is a per-company choice
+		rather than something decided here. When it is on, the figures come from
+		the same functions payroll uses, so the two can never drift apart.
+		"""
+		from upande_payroll.kenya_statutory_calculator import (
+			compute_housing_levy,
+			compute_nssf,
+			compute_shif,
+			get_statutory_components,
+		)
+
+		components = get_statutory_components()
+		managed = {
+			components.nssf_tier1_employee, components.nssf_tier2_employee,
+			components.shif, components.housing_levy_employee,
+		}
+		self.deductions = [
+			row for row in (self.deductions or []) if row.deduction_type not in managed
+		]
+
+		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
+		if settings.terminal_dues_statutory_deductions != "All Statutory":
+			return
+
+		kenya = frappe.get_cached_doc("Kenya Payroll Settings")
+		if not kenya.enabled:
+			return
+
+		base = self._statutory_base()
+		if base <= 0:
+			return
+
+		nssf = compute_nssf(base, kenya)
+		amounts = [
+			(components.nssf_tier1_employee, nssf.tier1_employee),
+			(components.nssf_tier2_employee, nssf.tier2_employee),
+			(components.shif, compute_shif(base, kenya, "Monthly")),
+			(components.housing_levy_employee, compute_housing_levy(base, kenya).employee),
+		]
+
+		for component, amount in amounts:
+			if not component or flt(amount) <= 0:
+				continue
+			self.append("deductions", {
+				"deduction_type": component,
+				"description": _("On terminal earnings of {0}").format(f"{base:,.2f}"),
+				"amount": flt(amount, 2),
+				"source_doctype": "Kenya Payroll Settings",
+				"source_document": "",
+			})
+
 	def _sync_paye(self):
 		"""PAYE on regular taxable earnings only (Days Worked + Leave + Notice).
 		Gratuity is excluded - it carries its own PAYE from the Gratuity record."""
@@ -387,10 +483,7 @@ class TerminalDuesSettlement(Document):
 			r for r in (self.deductions or []) if r.deduction_type != paye_component
 		]
 
-		taxable = sum(
-			flt(r.amount) for r in (self.earnings or [])
-			if r.is_taxable and not r.is_gratuity
-		)
+		taxable = self._statutory_base()
 		if not taxable:
 			return
 
@@ -412,31 +505,48 @@ class TerminalDuesSettlement(Document):
 		})
 
 	def _calc_paye(self, taxable_income):
-		"""Progressive PAYE from the Income Tax Slab in effect for this company."""
-		lookup_date = self.relieving_date or getdate()
-		slab_name = frappe.db.get_value(
-			"Income Tax Slab",
-			{"company": self.company, "effective_from": ("<=", lookup_date), "disabled": 0},
-			"name",
-			order_by="effective_from desc",
+		"""PAYE on the terminal earnings, from Kenya Payroll Settings.
+
+		It used to read the company's Income Tax Slab. On a site set up for
+		gratuity that slab is the annual one - bands running to 288,000 and a
+		relief of 28,800 - and applying it to a month's dues gave nothing:
+		zero tax on settlements up to 200,000, because a whole year's relief was
+		taken off one month's tax. The bands live in Kenya Payroll Settings now,
+		the same ones payroll uses, so a settlement and a payslip in the same
+		month cannot tax the same money differently.
+		"""
+		from upande_payroll.kenya_statutory_calculator import (
+			compute_gross_paye,
+			get_statutory_components,
 		)
-		if not slab_name:
+
+		kenya = frappe.get_cached_doc("Kenya Payroll Settings")
+		if not kenya.enabled:
 			return 0.0
 
-		slab = frappe.get_doc("Income Tax Slab", slab_name)
-		monthly_relief = flt(slab.standard_tax_exemption_amount)
+		# SHIF and the Housing Levy come off taxable pay in full; NSSF is
+		# relieved with pension against the combined monthly cap. Only what was
+		# actually deducted may relieve, so a company on PAYE Only relieves
+		# nothing - it did not take the levies.
+		components = get_statutory_components()
+		deducted = {}
+		for row in (self.deductions or []):
+			deducted[row.deduction_type] = deducted.get(row.deduction_type, 0.0) + flt(row.amount)
 
-		gross_tax = 0.0
-		for b in slab.slabs:
-			b_from = flt(b.from_amount)
-			b_to = flt(b.to_amount) if flt(b.to_amount) else taxable_income
-			if taxable_income <= b_from:
-				break
-			band = min(taxable_income, b_to) - b_from
-			if band > 0:
-				gross_tax += band * flt(b.percent_deduction) / 100.0
+		levies = (
+			flt(deducted.get(components.shif))
+			+ flt(deducted.get(components.housing_levy_employee))
+		)
+		nssf = (
+			flt(deducted.get(components.nssf_tier1_employee))
+			+ flt(deducted.get(components.nssf_tier2_employee))
+		)
+		cap = flt(kenya.retirement_relief_cap)
+		retirement = min(nssf, cap) if cap else nssf
 
-		return max(0.0, round(gross_tax - monthly_relief, 2))
+		chargeable = max(flt(taxable_income) - levies - retirement, 0.0)
+		gross_tax = compute_gross_paye(chargeable, kenya)
+		return max(0.0, round(gross_tax - flt(kenya.monthly_personal_relief), 2))
 
 	# ------------------------------------------------------------------
 	# Totals
@@ -541,6 +651,21 @@ class TerminalDuesSettlement(Document):
 		      the employee once every deduction line above is accounted for)
 		"""
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
+
+		# Nothing to post, so post nothing. A settlement can legitimately come to
+		# zero - somebody who left with no days worked, no notice and no accrued
+		# anything - and there is no accounting entry to make for it.
+		#
+		# It also has to be caught here rather than left to the Journal Entry:
+		# ERPNext's get_stock_accounts() reads an empty list of rows as "check
+		# every stock account in the company", so a JE with all its lines
+		# filtered out came back complaining about Stock In Hand, which had
+		# nothing to do with payroll.
+		if not flt(self.total_earnings) and not flt(self.net_payable) and not any(
+			flt(row.amount) for row in (self.deductions or [])
+		):
+			return None
+
 		salary_exp, payroll_pay, component_account = self._resolve_accounts()
 
 		deduction_totals = {}

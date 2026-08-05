@@ -11,6 +11,13 @@
   "enable_leave_encashment_calculation",
   "column_break_lees",
   "leave_encashment_divisor",
+  "leave_provision_section",
+  "leave_provision_leave_types",
+  "leave_provision_basic_pay_component",
+  "leave_provision_divisor",
+  "column_break_provision",
+  "leave_provision_expense_account",
+  "leave_provision_liability_account",
   "lta_section",
   "enable_leave_travelling_allowance",
   "lta_leave_type",
@@ -36,6 +43,7 @@
   "column_break_td",
   "terminal_dues_notice_pay_earning_component",
   "terminal_dues_notice_pay_deduction_component",
+  "terminal_dues_statutory_deductions",
   "terminal_dues_paye_component",
   "terminal_dues_asset_recovery_component",
   "terminal_dues_notice_period_rules",
@@ -91,47 +99,47 @@
   },
   {
    "default": "0",
+   "description": "Pay people a set amount once a year when they take a decent stretch of leave.",
    "fieldname": "enable_leave_travelling_allowance",
    "fieldtype": "Check",
-   "label": "Enable Leave Travelling Allowance",
-   "description": "Pay people a set amount once a year when they take a decent stretch of leave."
+   "label": "Enable Leave Travelling Allowance"
   },
   {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
    "fieldname": "lta_leave_type",
    "fieldtype": "Link",
    "label": "Qualifying Leave Type",
-   "options": "Leave Type",
-   "depends_on": "eval:doc.enable_leave_travelling_allowance",
-   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "options": "Leave Type"
   },
   {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
    "fieldname": "lta_salary_component",
    "fieldtype": "Link",
    "label": "LTA Salary Component",
-   "options": "Salary Component",
-   "depends_on": "eval:doc.enable_leave_travelling_allowance",
-   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "options": "Salary Component"
   },
   {
    "fieldname": "column_break_lta",
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
    "fieldname": "lta_amount",
    "fieldtype": "Currency",
    "label": "LTA Amount",
-   "depends_on": "eval:doc.enable_leave_travelling_allowance",
    "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
   },
   {
    "default": "13",
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "description": "How long one leave application has to be before it counts.",
    "fieldname": "lta_minimum_days",
    "fieldtype": "Float",
    "label": "Minimum Leave Days",
-   "precision": "1",
    "non_negative": 1,
-   "depends_on": "eval:doc.enable_leave_travelling_allowance",
-   "description": "How long one leave application has to be before it counts."
+   "precision": "1"
   },
   {
    "fieldname": "gratuity_section",
@@ -351,19 +359,74 @@
    "description": "The one account all salaries go to, like Salaries and Welfare.",
    "fieldname": "single_gross_pay_account",
    "fieldtype": "Link",
-   "options": "Account",
-   "mandatory_depends_on": "eval:doc.gross_pay_account_method == \"Single Account\""
+   "mandatory_depends_on": "eval:doc.gross_pay_account_method == \"Single Account\"",
+   "options": "Account"
+  },
+  {
+   "fieldname": "leave_provision_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Provision"
+  },
+  {
+   "description": "Leave that would have to be paid out if it is never taken. Usually just annual leave. Sick and maternity are not normally provided for.",
+   "fieldname": "leave_provision_leave_types",
+   "fieldtype": "Table",
+   "label": "Leave Types To Provide For",
+   "options": "Leave Provision Leave Type"
+  },
+  {
+   "fieldname": "column_break_provision",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Debited with the cost of leave earned but not taken.",
+   "fieldname": "leave_provision_expense_account",
+   "fieldtype": "Link",
+   "label": "Leave Expense Account",
+   "options": "Account"
+  },
+  {
+   "description": "Credited with what the company owes in untaken leave.",
+   "fieldname": "leave_provision_liability_account",
+   "fieldtype": "Link",
+   "label": "Leave Provision Account",
+   "options": "Account"
+  },
+  {
+   "description": "The component a day's pay is worked out from when valuing leave.",
+   "fieldname": "leave_provision_basic_pay_component",
+   "fieldtype": "Link",
+   "label": "Basic Pay Component",
+   "options": "Salary Component"
+  },
+  {
+   "default": "26",
+   "description": "Basic pay is divided by this to get a day's pay. Keep it the same as your leave encashment divisor, or you will provide for less than you would actually pay out.",
+   "fieldname": "leave_provision_divisor",
+   "fieldtype": "Int",
+   "label": "Daily Rate Divisor",
+   "non_negative": 1
+  },
+  {
+   "default": "PAYE Only",
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "PAYE Only: tax comes off the final dues and nothing else. All Statutory: NSSF, SHIF and the Housing Levy come off too, worked out the same way payroll does it. Which is right depends on how the company treats terminal pay, so it is a choice rather than a rule.",
+   "fieldname": "terminal_dues_statutory_deductions",
+   "fieldtype": "Select",
+   "label": "Statutory Deductions on Final Dues",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "PAYE Only\nAll Statutory"
   }
  ],
  "index_web_pages_for_search": 1,
- "istable": 0,
  "is_submittable": 0,
+ "istable": 0,
  "links": [],
  "modified": "2026-07-21 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
- "naming_rule": "By fieldname",
  "name": "Company Payroll Settings",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

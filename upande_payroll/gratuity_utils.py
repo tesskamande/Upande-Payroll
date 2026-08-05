@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import add_days, flt, getdate
+from frappe.utils import add_days, add_to_date, flt, getdate
 
 
 def calculate_gratuity(doc, method=None):
@@ -98,8 +98,12 @@ def calculate_gratuity(doc, method=None):
 	exemption_rows = []
 
 	for yr in range(1, years + 1):
-		ann_start = getdate(f"{doj.year + yr - 1}-{doj.month:02d}-{doj.day:02d}")
-		ann_end = getdate(f"{doj.year + yr}-{doj.month:02d}-{doj.day:02d}")
+		# Real date arithmetic, not a rebuilt string: someone who joined on 29
+		# February has no anniversary in a common year, and "2027-02-29" is not
+		# a date - it threw rather than calculating. add_to_date lands on the
+		# 28th in those years, which is how an anniversary is normally read.
+		ann_start = getdate(add_to_date(doj, years=yr - 1))
+		ann_end = getdate(add_to_date(doj, years=yr))
 		total_days = (ann_end - ann_start).days
 
 		if not exemption_date or ann_end <= exemption_date:
@@ -158,7 +162,10 @@ def calculate_gratuity(doc, method=None):
 			})
 
 		if bucket_count > 0:
-			bucket_ann_end = getdate(f"{doj.year + years - recent_years}-{doj.month:02d}-{doj.day:02d}")
+			# add_to_date, not a rebuilt date string: someone who joined on 29
+			# February has no anniversary in a common year, and "2027-02-29" is
+			# not a date - it threw rather than calculating.
+			bucket_ann_end = getdate(add_to_date(doj, years=years - recent_years))
 			doc.append("custom_gratuity_exemption_breakdown", {
 				"gratuity_year": bucket_year,
 				"service_period": f"{doj.strftime('%d/%m/%Y')} - {bucket_ann_end.strftime('%d/%m/%Y')}",

@@ -83,6 +83,7 @@ def apply_deduction_cap(doc, method=None):
 	# and raises no new debt - it only settles the ones brought forward.
 	_allocate(doc, rows, plan)
 	doc.custom_one_third_rule_skipped = 1 if final_slip else 0
+	doc.flags.one_third_unconfigured = not rules
 
 	doc.custom_wage_base_for_deduction_cap = wage_base
 	doc.custom_maximum_permitted_deduction = permitted
@@ -466,6 +467,29 @@ def _notify(doc, permitted):
 		return
 
 	if flt(doc.custom_unreducible_excess) > TOLERANCE:
+		# Being over the limit with nothing declared reducible is the likeliest
+		# way this goes wrong in a new company: the rule is on, so it looks as
+		# though pay is protected, but there is nothing it is allowed to cut.
+		# Say that plainly rather than reporting a breach with no cause.
+		if doc.flags.get("one_third_unconfigured"):
+			frappe.msgprint(
+				_(
+					"Deductions for {0} are {1} over the limit of {2}, but nothing "
+					"was reduced: no Deduction Priority has been set up for {3}, so "
+					"the rule has no deduction it is allowed to cut. Set one up, or "
+					"turn off Comply with 1/3 Rule."
+				).format(
+					doc.employee_name,
+					frappe.format_value(flt(doc.custom_unreducible_excess),
+										{"fieldtype": "Currency"}),
+					frappe.format_value(flt(permitted), {"fieldtype": "Currency"}),
+					doc.company,
+				),
+				title=_("1/3 Rule Not Configured"),
+				indicator="red",
+			)
+			return
+
 		frappe.msgprint(
 			_(
 				"Deductions for {0} exceed two thirds of wages by {1} and cannot be "

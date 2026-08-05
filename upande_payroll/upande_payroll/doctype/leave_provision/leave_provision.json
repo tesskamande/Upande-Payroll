@@ -1,0 +1,264 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-08-04 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "company",
+  "from_date",
+  "to_date",
+  "column_break_head",
+  "posting_date",
+  "group_by",
+  "status",
+  "basis_section",
+  "basic_pay_component",
+  "divisor",
+  "column_break_basis",
+  "leave_types",
+  "accounts_section",
+  "expense_account",
+  "column_break_accounts",
+  "liability_account",
+  "result_section",
+  "employees",
+  "total_liability",
+  "previous_provision",
+  "previous_liability",
+  "movement",
+  "journal_entry",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "LPRV-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "LPRV-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "description": "Leave balances are valued as they stand on this date.",
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "default": "Department",
+   "description": "One debit line per group. Nothing puts it all on one line.",
+   "fieldname": "group_by",
+   "fieldtype": "Select",
+   "label": "Group Journal By",
+   "options": "Department\nBranch\nCost Center\nNothing",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nSubmitted\nCancelled",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "basis_section",
+   "fieldtype": "Section Break",
+   "label": "How It Is Valued (from Company Payroll Settings)"
+  },
+  {
+   "description": "The component a day's pay is worked out from.",
+   "fieldname": "basic_pay_component",
+   "fieldtype": "Link",
+   "label": "Basic Pay Component",
+   "options": "Salary Component",
+   "reqd": 1
+  },
+  {
+   "description": "Basic pay is divided by this to get a day's pay. Keep it the same as your leave encashment divisor, or you will provide for less than you would actually pay out.",
+   "fieldname": "divisor",
+   "fieldtype": "Int",
+   "label": "Daily Rate Divisor",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_basis",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Which leave carries a liability. Usually only the leave you would have to pay out.",
+   "fieldname": "leave_types",
+   "fieldtype": "Table",
+   "label": "Leave Types",
+   "options": "Leave Provision Leave Type",
+   "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounts_section",
+   "fieldtype": "Section Break",
+   "label": "Accounts (from Company Payroll Settings)"
+  },
+  {
+   "description": "Debited with the cost of leave earned but not taken.",
+   "fieldname": "expense_account",
+   "fieldtype": "Link",
+   "label": "Leave Expense Account",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_accounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Credited with what the company owes in untaken leave.",
+   "fieldname": "liability_account",
+   "fieldtype": "Link",
+   "label": "Leave Provision Account",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Working"
+  },
+  {
+   "fieldname": "employees",
+   "fieldtype": "Table",
+   "label": "Employees",
+   "options": "Leave Provision Detail",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_liability",
+   "fieldtype": "Currency",
+   "label": "Total Liability",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Leave Provision",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "description": "The last provision this one moves on from.",
+   "fieldname": "previous_provision",
+   "fieldtype": "Link",
+   "label": "Previous Provision",
+   "options": "Leave Provision",
+   "read_only": 1
+  },
+  {
+   "fieldname": "previous_liability",
+   "fieldtype": "Currency",
+   "label": "Previously Provided",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "description": "What this journal posts: the change since the last provision. Negative releases part of it because leave was taken.",
+   "fieldname": "movement",
+   "fieldtype": "Currency",
+   "label": "Movement",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-04 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Leave Provision",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "company",
+ "track_changes": 1
+}

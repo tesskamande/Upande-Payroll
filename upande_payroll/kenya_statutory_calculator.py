@@ -301,6 +301,17 @@ def compute_personal_relief(salary_slip, settings, kenya_settings, taxable_incom
 
 	if settings.personal_relief_method != "Carry Forward (Annual Cap)":
 		relief_utilized = min(gross_paye, monthly_relief)
+
+		# Record what was relieved even though nothing is being carried. The
+		# figure is just as true here as under carry forward, and the P9 and
+		# P10 read it for their relief columns - leaving it unset made every
+		# month on a Flat Monthly company report no relief at all.
+		salary_slip.custom_personal_relief_brought_forward = 0
+		salary_slip.custom_personal_relief_available_this_month = monthly_relief
+		salary_slip.custom_personal_relief_utilized = relief_utilized
+		salary_slip.custom_personal_relief_carried_forward = 0
+		salary_slip.custom_annual_personal_relief = 0
+
 		return frappe._dict({"gross_paye": gross_paye, "relief_utilized": relief_utilized})
 
 	return _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, monthly_relief)

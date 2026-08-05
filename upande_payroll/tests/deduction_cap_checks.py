@@ -65,10 +65,17 @@ def structure(name, earnings, deductions, freq="Monthly"):
 
 
 def statutory_rows():
-    src = frappe.get_doc("Salary Structure", "Kenya Statutory Monthly (Test)")
-    return [{"salary_component": d.salary_component, "amount": 0,
+    """Zero placeholders for every statutory component, for the calculator to fill.
+
+    Built from the app's own component map rather than copied off some existing
+    structure - cloning one made these checks depend on data that happened to be
+    on the site, and they stopped running the moment it was cleared.
+    """
+    from upande_payroll.kenya_statutory_calculator import get_statutory_components
+
+    return [{"salary_component": name, "amount": 0,
              "amount_based_on_formula": 0, "depends_on_payment_days": 0}
-            for d in src.deductions]
+            for name in get_statutory_components().values()]
 
 
 def employee(name):
