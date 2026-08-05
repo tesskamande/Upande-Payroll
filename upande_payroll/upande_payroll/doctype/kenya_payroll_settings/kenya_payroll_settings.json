@@ -1,0 +1,263 @@
+{
+ "actions": [],
+ "creation": "2026-07-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "issingle": 1,
+ "istable": 0,
+ "is_submittable": 0,
+ "field_order": [
+  "effective_from",
+  "column_break_1",
+  "enabled",
+  "paye_section",
+  "monthly_personal_relief",
+  "column_break_paye",
+  "insurance_relief_rate",
+  "monthly_insurance_relief_cap",
+  "paye_bands_section",
+  "paye_bands",
+  "nssf_section",
+  "nssf_tier1_rate",
+  "nssf_tier1_cap",
+  "nssf_lower_earnings_limit",
+  "column_break_nssf",
+  "nssf_tier2_rate",
+  "nssf_tier2_cap",
+  "nssf_upper_earnings_limit",
+  "shif_section",
+  "shif_rate",
+  "column_break_shif",
+  "shif_minimum",
+  "housing_levy_section",
+  "ahl_employee_rate",
+  "column_break_ahl",
+  "ahl_employer_rate",
+  "nita_section",
+  "nita_amount",
+  "retirement_relief_section",
+  "retirement_relief_cap",
+  "other_allowable_deductions_section",
+  "mortgage_interest_relief_cap",
+  "column_break_allowable",
+  "post_retirement_medical_fund_cap"
+ ],
+ "fields": [
+  {
+   "fieldname": "effective_from",
+   "fieldtype": "Date",
+   "label": "Effective From"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "paye_section",
+   "fieldtype": "Section Break",
+   "label": "PAYE"
+  },
+  {
+   "description": "The tax credit everyone gets each month.",
+   "fieldname": "monthly_personal_relief",
+   "fieldtype": "Currency",
+   "label": "Monthly Personal Relief"
+  },
+  {
+   "fieldname": "column_break_paye",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "How much of an insurance premium counts towards relief.",
+   "fieldname": "insurance_relief_rate",
+   "fieldtype": "Percent",
+   "label": "Insurance Relief Rate"
+  },
+  {
+   "description": "The most insurance relief anyone can get in a month.",
+   "fieldname": "monthly_insurance_relief_cap",
+   "fieldtype": "Currency",
+   "label": "Monthly Insurance Relief Cap"
+  },
+  {
+   "fieldname": "paye_bands_section",
+   "fieldtype": "Section Break",
+   "label": "PAYE Bands"
+  },
+  {
+   "description": "The monthly tax bands. Put 0 as the To Amount on the top one.",
+   "fieldname": "paye_bands",
+   "fieldtype": "Table",
+   "label": "PAYE Bands",
+   "options": "Kenya PAYE Band"
+  },
+  {
+   "fieldname": "nssf_section",
+   "fieldtype": "Section Break",
+   "label": "NSSF"
+  },
+  {
+   "description": "Rate charged on pay up to the lower limit.",
+   "fieldname": "nssf_tier1_rate",
+   "fieldtype": "Percent",
+   "label": "Tier I Rate"
+  },
+  {
+   "description": "The most Tier I can come to in a month.",
+   "fieldname": "nssf_tier1_cap",
+   "fieldtype": "Currency",
+   "label": "Tier I Cap"
+  },
+  {
+   "description": "Pay up to here is Tier I.",
+   "fieldname": "nssf_lower_earnings_limit",
+   "fieldtype": "Currency",
+   "label": "Lower Earnings Limit (LEL)"
+  },
+  {
+   "fieldname": "column_break_nssf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Rate charged on pay between the two limits.",
+   "fieldname": "nssf_tier2_rate",
+   "fieldtype": "Percent",
+   "label": "Tier II Rate"
+  },
+  {
+   "description": "The most Tier II can come to in a month.",
+   "fieldname": "nssf_tier2_cap",
+   "fieldtype": "Currency",
+   "label": "Tier II Cap"
+  },
+  {
+   "description": "Pay between the two limits is Tier II.",
+   "fieldname": "nssf_upper_earnings_limit",
+   "fieldtype": "Currency",
+   "label": "Upper Earnings Limit (UEL)"
+  },
+  {
+   "fieldname": "shif_section",
+   "fieldtype": "Section Break",
+   "label": "SHIF"
+  },
+  {
+   "description": "Percentage charged for SHIF.",
+   "fieldname": "shif_rate",
+   "fieldtype": "Percent",
+   "label": "SHIF Rate"
+  },
+  {
+   "fieldname": "column_break_shif",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The least anyone pays for SHIF in a month.",
+   "fieldname": "shif_minimum",
+   "fieldtype": "Currency",
+   "label": "SHIF Minimum"
+  },
+  {
+   "fieldname": "housing_levy_section",
+   "fieldtype": "Section Break",
+   "label": "Affordable Housing Levy"
+  },
+  {
+   "description": "What the employee pays.",
+   "fieldname": "ahl_employee_rate",
+   "fieldtype": "Percent",
+   "label": "Employee Rate"
+  },
+  {
+   "fieldname": "column_break_ahl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "What the company pays on top.",
+   "fieldname": "ahl_employer_rate",
+   "fieldtype": "Percent",
+   "label": "Employer Rate"
+  },
+  {
+   "fieldname": "nita_section",
+   "fieldtype": "Section Break",
+   "label": "NITA"
+  },
+  {
+   "description": "Flat amount the company pays for each employee every month.",
+   "fieldname": "nita_amount",
+   "fieldtype": "Currency",
+   "label": "NITA Amount"
+  },
+  {
+   "fieldname": "retirement_relief_section",
+   "fieldtype": "Section Break",
+   "label": "Retirement Contributions Relief"
+  },
+  {
+   "description": "The most NSSF and pension together can take off taxable pay in a month.",
+   "fieldname": "retirement_relief_cap",
+   "fieldtype": "Currency",
+   "label": "Retirement Relief Cap"
+  },
+  {
+   "fieldname": "other_allowable_deductions_section",
+   "fieldtype": "Section Break",
+   "label": "Other Allowable Deductions"
+  },
+  {
+   "description": "The most mortgage interest can take off taxable pay in a month.",
+   "fieldname": "mortgage_interest_relief_cap",
+   "fieldtype": "Currency",
+   "label": "Mortgage Interest Relief Cap"
+  },
+  {
+   "fieldname": "column_break_allowable",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The most post-retirement medical contributions can take off taxable pay in a month.",
+   "fieldname": "post_retirement_medical_fund_cap",
+   "fieldtype": "Currency",
+   "label": "Post-Retirement Medical Fund Cap"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Kenya Payroll Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

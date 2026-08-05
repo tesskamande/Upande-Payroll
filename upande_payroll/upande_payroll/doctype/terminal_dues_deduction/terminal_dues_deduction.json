@@ -1,0 +1,74 @@
+{
+ "actions": [],
+ "creation": "2026-07-22 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "deduction_type",
+  "description",
+  "col_break1",
+  "amount",
+  "source_section",
+  "source_doctype",
+  "source_document"
+ ],
+ "fields": [
+  {
+   "fieldname": "deduction_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Deduction Type",
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description"
+  },
+  {
+   "fieldname": "col_break1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "source_section",
+   "fieldtype": "Section Break",
+   "label": "Source"
+  },
+  {
+   "fieldname": "source_doctype",
+   "fieldtype": "Data",
+   "label": "Source Doctype",
+   "read_only": 1
+  },
+  {
+   "fieldname": "source_document",
+   "fieldtype": "Data",
+   "label": "Source Document",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Terminal Dues Deduction",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

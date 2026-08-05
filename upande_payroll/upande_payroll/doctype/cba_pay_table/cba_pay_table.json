@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-07-16 19:03:43.805927",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "job_category",
+  "current_basic_pay",
+  "percentage_increase",
+  "increase_amount",
+  "new_basic_pay"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Job Category",
+   "options": "Unskilled\nSemi-skilled\nSecurity\nTractor Driver\nClerk\nSmall Truck Driver\nLarge Truck Driver\nArtisan"
+  },
+  {
+   "fieldname": "current_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Current Basic Pay",
+   "precision": "2"
+  },
+  {
+   "fieldname": "percentage_increase",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Percentage Increase"
+  },
+  {
+   "fieldname": "increase_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Increase Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "new_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "New Basic Pay",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-16 19:25:42.158909",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "CBA Pay Table",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

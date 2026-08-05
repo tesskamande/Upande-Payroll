@@ -1,0 +1,394 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:company",
+ "creation": "2026-07-17 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "leave_encashment_section",
+  "enable_leave_encashment_calculation",
+  "column_break_lees",
+  "leave_encashment_divisor",
+  "lta_section",
+  "enable_leave_travelling_allowance",
+  "lta_leave_type",
+  "lta_salary_component",
+  "column_break_lta",
+  "lta_amount",
+  "lta_minimum_days",
+  "gratuity_section",
+  "enable_gratuity_calculation",
+  "gratuity_tax_exemption_date",
+  "column_break_grat",
+  "gratuity_paye_recent_years",
+  "gratuity_salary_component",
+  "overtime_section",
+  "enable_overtime_calculation",
+  "default_monthly_working_hours",
+  "overtime_department_working_hours",
+  "terminal_dues_section",
+  "enable_terminal_dues_calculation",
+  "terminal_dues_basic_pay_component",
+  "terminal_dues_days_worked_component",
+  "terminal_dues_divisor",
+  "column_break_td",
+  "terminal_dues_notice_pay_earning_component",
+  "terminal_dues_notice_pay_deduction_component",
+  "terminal_dues_paye_component",
+  "terminal_dues_asset_recovery_component",
+  "terminal_dues_notice_period_rules",
+  "one_third_rule_section",
+  "enable_one_third_rule",
+  "taxable_income_section",
+  "enable_taxable_income_calculation",
+  "personal_relief_method",
+  "statutory_income_component_mapping",
+  "payroll_je_section",
+  "gross_pay_account_method",
+  "column_break_je",
+  "single_gross_pay_account"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "leave_encashment_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Encashment"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_leave_encashment_calculation",
+   "fieldtype": "Check",
+   "label": "Enable Leave Encashment Calculation"
+  },
+  {
+   "fieldname": "column_break_lees",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "26",
+   "depends_on": "eval:doc.enable_leave_encashment_calculation",
+   "fieldname": "leave_encashment_divisor",
+   "fieldtype": "Int",
+   "label": "Leave Encashment Divisor",
+   "mandatory_depends_on": "eval:doc.enable_leave_encashment_calculation",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "lta_section",
+   "fieldtype": "Section Break",
+   "label": "Leave Travelling Allowance"
+  },
+  {
+   "default": "0",
+   "fieldname": "enable_leave_travelling_allowance",
+   "fieldtype": "Check",
+   "label": "Enable Leave Travelling Allowance",
+   "description": "Pay people a set amount once a year when they take a decent stretch of leave."
+  },
+  {
+   "fieldname": "lta_leave_type",
+   "fieldtype": "Link",
+   "label": "Qualifying Leave Type",
+   "options": "Leave Type",
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
+  },
+  {
+   "fieldname": "lta_salary_component",
+   "fieldtype": "Link",
+   "label": "LTA Salary Component",
+   "options": "Salary Component",
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
+  },
+  {
+   "fieldname": "column_break_lta",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "lta_amount",
+   "fieldtype": "Currency",
+   "label": "LTA Amount",
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
+  },
+  {
+   "default": "13",
+   "fieldname": "lta_minimum_days",
+   "fieldtype": "Float",
+   "label": "Minimum Leave Days",
+   "precision": "1",
+   "non_negative": 1,
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "description": "How long one leave application has to be before it counts."
+  },
+  {
+   "fieldname": "gratuity_section",
+   "fieldtype": "Section Break",
+   "label": "Gratuity"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_gratuity_calculation",
+   "fieldtype": "Check",
+   "label": "Enable Gratuity Calculation"
+  },
+  {
+   "depends_on": "eval:doc.enable_gratuity_calculation",
+   "description": "Gratuity earned from this date onwards isn't taxed. Leave blank if none of it is.",
+   "fieldname": "gratuity_tax_exemption_date",
+   "fieldtype": "Date",
+   "label": "Gratuity Tax Exemption Date"
+  },
+  {
+   "fieldname": "column_break_grat",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "4",
+   "depends_on": "eval:doc.enable_gratuity_calculation",
+   "description": "How many recent years to tax the gratuity over one by one. Anything further back is put together in a single row.",
+   "fieldname": "gratuity_paye_recent_years",
+   "fieldtype": "Int",
+   "label": "Gratuity PAYE Recent Years",
+   "mandatory_depends_on": "eval:doc.enable_gratuity_calculation",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "eval:doc.enable_gratuity_calculation",
+   "description": "Which component to use when gratuity goes out on a payslip.",
+   "fieldname": "gratuity_salary_component",
+   "fieldtype": "Link",
+   "label": "Gratuity Salary Component",
+   "options": "Salary Component"
+  },
+  {
+   "fieldname": "overtime_section",
+   "fieldtype": "Section Break",
+   "label": "Overtime"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_overtime_calculation",
+   "fieldtype": "Check",
+   "label": "Enable Overtime Calculation"
+  },
+  {
+   "default": "199.33",
+   "depends_on": "eval:doc.enable_overtime_calculation",
+   "description": "Hours used to work out someone's hourly rate for overtime. Departments below can use their own.",
+   "fieldname": "default_monthly_working_hours",
+   "fieldtype": "Float",
+   "label": "Default Monthly Working Hours",
+   "mandatory_depends_on": "eval:doc.enable_overtime_calculation",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "eval:doc.enable_overtime_calculation",
+   "description": "Departments that don't work the standard hours, like Security.",
+   "fieldname": "overtime_department_working_hours",
+   "fieldtype": "Table",
+   "label": "Department Working Hours Overrides",
+   "options": "Overtime Working Hours Rule"
+  },
+  {
+   "fieldname": "terminal_dues_section",
+   "fieldtype": "Section Break",
+   "label": "Terminal Dues"
+  },
+  {
+   "default": "1",
+   "fieldname": "enable_terminal_dues_calculation",
+   "fieldtype": "Check",
+   "label": "Enable Terminal Dues Calculation"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "Which component is basic pay. Used to work out a day's pay.",
+   "fieldname": "terminal_dues_basic_pay_component",
+   "fieldtype": "Link",
+   "label": "Basic Pay Salary Component",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "Salary Component"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "The earning row for the days they worked in their last month.",
+   "fieldname": "terminal_dues_days_worked_component",
+   "fieldtype": "Link",
+   "label": "Days Worked Pay Component",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "Salary Component"
+  },
+  {
+   "default": "26",
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "How many days to divide monthly basic pay by to get a day's pay.",
+   "fieldname": "terminal_dues_divisor",
+   "fieldtype": "Int",
+   "label": "Daily Rate Divisor",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "non_negative": 1
+  },
+  {
+   "fieldname": "column_break_td",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "Used when you're paying someone for notice they didn't work.",
+   "fieldname": "terminal_dues_notice_pay_earning_component",
+   "fieldtype": "Link",
+   "label": "Notice Pay Earning Component",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "Salary Component"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "Used when you're charging someone for notice they didn't serve.",
+   "fieldname": "terminal_dues_notice_pay_deduction_component",
+   "fieldtype": "Link",
+   "label": "Notice Pay Deduction Component",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "Salary Component"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "Which deduction to use for PAYE on final dues.",
+   "fieldname": "terminal_dues_paye_component",
+   "fieldtype": "Link",
+   "label": "PAYE Component",
+   "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "options": "Salary Component"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "Which deduction to use when charging someone for company property they've lost. Only needed if you list assets on the settlement.",
+   "fieldname": "terminal_dues_asset_recovery_component",
+   "fieldtype": "Link",
+   "label": "Asset Recovery Component",
+   "options": "Salary Component"
+  },
+  {
+   "depends_on": "eval:doc.enable_terminal_dues_calculation",
+   "description": "How much notice people get, based on how long they've been here. The ranges must follow on with no gaps. Leave Maximum Years empty on the last row.",
+   "fieldname": "terminal_dues_notice_period_rules",
+   "fieldtype": "Table",
+   "label": "Notice Period Rules",
+   "options": "Terminal Dues Notice Period Rule"
+  },
+  {
+   "fieldname": "one_third_rule_section",
+   "fieldtype": "Section Break",
+   "label": "1/3 Rule"
+  },
+  {
+   "default": "1",
+   "description": "Don't let deductions take more than two thirds of someone's pay. Choose which ones give way under Deduction Priority.",
+   "fieldname": "enable_one_third_rule",
+   "fieldtype": "Check",
+   "label": "Comply with 1/3 Rule"
+  },
+  {
+   "fieldname": "taxable_income_section",
+   "fieldtype": "Section Break",
+   "label": "Taxable Income"
+  },
+  {
+   "default": "1",
+   "description": "Needed for Kenyan payroll. NSSF, SHIF and the Housing Levy come off one figure and PAYE off another, so the two are worked out separately rather than both off the payslip gross.",
+   "fieldname": "enable_taxable_income_calculation",
+   "fieldtype": "Check",
+   "label": "Enable Taxable Income Calculation"
+  },
+  {
+   "default": "Flat Monthly",
+   "depends_on": "eval:doc.enable_taxable_income_calculation",
+   "description": "Flat Monthly: the same relief every month. Carry Forward: anything unused rolls into next month.",
+   "fieldname": "personal_relief_method",
+   "fieldtype": "Select",
+   "label": "Personal Relief Method",
+   "options": "Flat Monthly\nCarry Forward (Annual Cap)",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.enable_taxable_income_calculation",
+   "description": "Sort your components into categories so the right things get taxed. Anything you don't list counts as normal cash pay.",
+   "fieldname": "statutory_income_component_mapping",
+   "fieldtype": "Table",
+   "label": "Statutory Income Component Mapping",
+   "options": "Statutory Income Component Mapping"
+  },
+  {
+   "fieldname": "payroll_je_section",
+   "fieldtype": "Section Break",
+   "label": "Payroll Journal Entry"
+  },
+  {
+   "description": "Where salaries land in the journal. Per Salary Component uses the account on each component, Per Employee uses the one on each employee's record, Single Account puts everything in one place.",
+   "fieldname": "gross_pay_account_method",
+   "fieldtype": "Select",
+   "label": "Gross Pay Account Method",
+   "options": "Per Salary Component\nPer Employee\nSingle Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_je",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The one account all salaries go to, like Salaries and Welfare.",
+   "fieldname": "single_gross_pay_account",
+   "fieldtype": "Link",
+   "options": "Account",
+   "mandatory_depends_on": "eval:doc.gross_pay_account_method == \"Single Account\""
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 0,
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-07-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "naming_rule": "By fieldname",
+ "name": "Company Payroll Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "company"
+}

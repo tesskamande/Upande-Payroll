@@ -1,0 +1,116 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:{company}-{group_name}",
+ "creation": "2026-08-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "group_name",
+  "company",
+  "column_break_dg1",
+  "priority",
+  "reducible",
+  "on_shortfall",
+  "tie_breaker"
+ ],
+ "fields": [
+  {
+   "description": "A name your team will recognise, like Sacco, Welfare or Unions.",
+   "fieldname": "group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Group Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_dg1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "1 is the one you protect most. The highest number is the first to be cut.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "Untick for things that must always come out in full, whatever else has to give.",
+   "fieldname": "reducible",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "May Be Reduced"
+  },
+  {
+   "default": "Carry Forward",
+   "depends_on": "eval:doc.reducible",
+   "description": "If you can't take the whole amount. Carry Forward: chase it next month. Waive: let it go.",
+   "fieldname": "on_shortfall",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "On Shortfall",
+   "mandatory_depends_on": "eval:doc.reducible",
+   "options": "Carry Forward\nWaive"
+  },
+  {
+   "default": "Pro-rata",
+   "depends_on": "eval:doc.reducible",
+   "description": "What to do when several in this group have to be cut. Pro-rata takes the same percentage off each, Largest First takes it all off the biggest, As Listed works up from the bottom of the list.",
+   "fieldname": "tie_breaker",
+   "fieldtype": "Select",
+   "label": "Share The Cut By",
+   "mandatory_depends_on": "eval:doc.reducible",
+   "options": "Pro-rata\nLargest First\nAs Listed"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Deduction Group",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "show_title_field_in_link": 1,
+ "sort_field": "priority",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "group_name",
+ "track_changes": 1
+}

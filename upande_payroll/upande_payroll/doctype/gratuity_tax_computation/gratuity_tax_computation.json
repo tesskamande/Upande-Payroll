@@ -1,0 +1,88 @@
+{
+ "actions": [],
+ "creation": "2026-07-17 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "gratuity_year",
+  "gratuity_portion",
+  "annual_taxable_pay",
+  "paye_already_paid",
+  "revised_taxable_income",
+  "tax_on_revised_income",
+  "personal_relief",
+  "tax_on_gratuity"
+ ],
+ "fields": [
+  {
+   "fieldname": "gratuity_year",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Gratuity Year",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gratuity_portion",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Gratuity Portion",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annual_taxable_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Annual Taxable Pay",
+   "precision": "2"
+  },
+  {
+   "fieldname": "paye_already_paid",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "PAYE Already Paid",
+   "precision": "2"
+  },
+  {
+   "fieldname": "revised_taxable_income",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Revised Taxable Income",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_on_revised_income",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Tax on Revised Income",
+   "read_only": 1
+  },
+  {
+   "fieldname": "personal_relief",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Personal Relief",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_on_gratuity",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Tax on Gratuity",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-22 12:58:17.709429",
+ "modified_by": "teresia@upande.com",
+ "module": "Upande Payroll",
+ "name": "Gratuity Tax Computation",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

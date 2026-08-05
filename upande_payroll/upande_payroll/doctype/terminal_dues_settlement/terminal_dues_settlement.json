@@ -1,0 +1,338 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "TDS-.YYYY.-.#####",
+ "creation": "2026-07-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "company",
+  "payment_status",
+  "col_break_header",
+  "designation",
+  "department",
+  "date_of_joining",
+  "relieving_date",
+  "years_worked",
+  "sec_exit_details",
+  "payroll_period_start",
+  "notice_direction",
+  "notice_days_served",
+  "col_break_exit",
+  "resignation_letter_date",
+  "days_worked_in_final_month",
+  "sec_earnings",
+  "earnings",
+  "sec_deductions",
+  "deductions",
+  "sec_assets",
+  "assets_allocated",
+  "sec_summary",
+  "total_earnings",
+  "total_deductions",
+  "col_break_summary",
+  "net_payable",
+  "sec_remarks",
+  "remarks",
+  "sec_accounting",
+  "salary_expense_account",
+  "payroll_payable_account",
+  "col_break_accounting",
+  "paye_account",
+  "journal_entry",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Payment Status",
+   "options": "Pending\nSubmitted\nPaid",
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "col_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.designation",
+   "fieldname": "designation",
+   "fieldtype": "Data",
+   "label": "Designation",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.date_of_joining",
+   "fieldname": "date_of_joining",
+   "fieldtype": "Date",
+   "label": "Date of Joining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "relieving_date",
+   "fieldtype": "Date",
+   "label": "Relieving Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "years_worked",
+   "fieldtype": "Float",
+   "label": "Years Worked",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_exit_details",
+   "fieldtype": "Section Break",
+   "label": "Exit Details"
+  },
+  {
+   "fieldname": "payroll_period_start",
+   "fieldtype": "Date",
+   "label": "Payroll Period Start",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notice_direction",
+   "fieldtype": "Select",
+   "label": "Notice Direction",
+   "options": "\nPayable to Employee\nDeduction from Employee",
+   "description": "Whether you're paying the employee for notice, or charging them for it."
+  },
+  {
+   "depends_on": "eval:doc.notice_direction",
+   "description": "How many days of notice they actually worked. Works itself out from the resignation and leaving dates if both are filled in. Only the days they didn't work get paid or charged.",
+   "fieldname": "notice_days_served",
+   "fieldtype": "Float",
+   "label": "Notice Days Served",
+   "non_negative": 1,
+   "precision": "1"
+  },
+  {
+   "fieldname": "col_break_exit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "employee.resignation_letter_date",
+   "fieldname": "resignation_letter_date",
+   "fieldtype": "Date",
+   "label": "Resignation Letter Date"
+  },
+  {
+   "description": "Taken from their attendance, days present plus rest days. Change it if it isn't right.",
+   "fieldname": "days_worked_in_final_month",
+   "fieldtype": "Float",
+   "label": "Days Worked in Final Month",
+   "precision": "1"
+  },
+  {
+   "fieldname": "sec_earnings",
+   "fieldtype": "Section Break",
+   "label": "Earnings"
+  },
+  {
+   "fieldname": "earnings",
+   "fieldtype": "Table",
+   "label": "Earnings",
+   "options": "Terminal Dues Earning"
+  },
+  {
+   "fieldname": "sec_deductions",
+   "fieldtype": "Section Break",
+   "label": "Deductions"
+  },
+  {
+   "fieldname": "deductions",
+   "fieldtype": "Table",
+   "label": "Deductions",
+   "options": "Terminal Dues Deduction"
+  },
+  {
+   "fieldname": "sec_assets",
+   "fieldtype": "Section Break",
+   "label": "Assets"
+  },
+  {
+   "description": "Company property this person was given. Anything marked lost gets charged back below.",
+   "fieldname": "assets_allocated",
+   "fieldtype": "Table",
+   "label": "Assets Allocated",
+   "options": "Terminal Dues Asset"
+  },
+  {
+   "fieldname": "sec_summary",
+   "fieldtype": "Section Break",
+   "label": "Summary"
+  },
+  {
+   "fieldname": "total_earnings",
+   "fieldtype": "Currency",
+   "label": "Total Earnings",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_deductions",
+   "fieldtype": "Currency",
+   "label": "Total Deductions",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_break_summary",
+   "fieldtype": "Column Break"
+  },
+  {
+   "bold": 1,
+   "fieldname": "net_payable",
+   "fieldtype": "Currency",
+   "label": "Net Payable",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_remarks",
+   "fieldtype": "Section Break",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "sec_accounting",
+   "fieldtype": "Section Break",
+   "label": "Accounting"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Where the earnings get charged.",
+   "fieldname": "salary_expense_account",
+   "fieldtype": "Link",
+   "label": "Salary Expense Account",
+   "options": "Account"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Where the net pay and other deductions get credited.",
+   "fieldname": "payroll_payable_account",
+   "fieldtype": "Link",
+   "label": "Payroll Payable Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "col_break_accounting",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Where PAYE gets credited.",
+   "fieldname": "paye_account",
+   "fieldtype": "Link",
+   "label": "PAYE Account",
+   "options": "Account"
+  },
+  {
+   "fieldname": "journal_entry",
+   "fieldtype": "Link",
+   "label": "Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Terminal Dues Settlement",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Terminal Dues Settlement",
+ "naming_rule": "Expression (will copy link)",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Employee",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

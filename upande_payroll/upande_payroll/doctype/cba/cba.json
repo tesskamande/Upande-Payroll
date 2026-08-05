@@ -1,0 +1,111 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:title",
+ "creation": "2026-07-16 19:03:44.069147",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "company",
+  "section_break_2ud4",
+  "effective_start_date",
+  "effective_end_date",
+  "column_break_hjqs",
+  "section_break_lhfi",
+  "table_dqro",
+  "section_break_zvhj",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Something you'll recognise later, like \"2025-2027 HFB CBA - Year 1\"."
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "description": "Applying this CBA only touches employees in this company."
+  },
+  {
+   "fieldname": "section_break_2ud4",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "effective_start_date",
+   "fieldtype": "Date",
+   "label": "Effective Start Date"
+  },
+  {
+   "fieldname": "effective_end_date",
+   "fieldtype": "Date",
+   "label": "Effective End Date"
+  },
+  {
+   "fieldname": "column_break_hjqs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_lhfi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "table_dqro",
+   "fieldtype": "Table",
+   "options": "CBA Pay Table"
+  },
+  {
+   "fieldname": "section_break_zvhj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "CBA",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-07-16 19:25:42.596309",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "CBA",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title"
+}

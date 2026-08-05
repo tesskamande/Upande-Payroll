@@ -1,0 +1,53 @@
+{
+ "actions": [],
+ "creation": "2026-07-20 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "minimum_years_of_service",
+  "maximum_years_of_service",
+  "notice_days"
+ ],
+ "fields": [
+  {
+   "fieldname": "minimum_years_of_service",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Minimum Years of Service",
+   "non_negative": 1,
+   "precision": "2",
+   "reqd": 1
+  },
+  {
+   "description": "Leave this empty on the last row, the one that means 10 years and above.",
+   "fieldname": "maximum_years_of_service",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Maximum Years of Service",
+   "non_negative": 1,
+   "precision": "2"
+  },
+  {
+   "fieldname": "notice_days",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Notice Days",
+   "non_negative": 1,
+   "precision": "1",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Terminal Dues Notice Period Rule",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

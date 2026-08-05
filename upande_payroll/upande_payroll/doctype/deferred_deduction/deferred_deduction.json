@@ -1,0 +1,219 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-08-02 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "company",
+  "salary_component",
+  "column_break_dd1",
+  "deferred_from",
+  "deferral_date",
+  "deferred_month",
+  "status",
+  "amounts_section",
+  "original_amount",
+  "applied_amount",
+  "column_break_dd2",
+  "deferred_amount",
+  "balance_remaining",
+  "recovery_section",
+  "recoveries",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "DEFD-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "DEFD-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_dd1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The payslip that couldn't take it all.",
+   "fieldname": "deferred_from",
+   "fieldtype": "Link",
+   "label": "Deferred From",
+   "options": "Salary Slip",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deferral_date",
+   "fieldtype": "Date",
+   "label": "Deferral Date",
+   "read_only": 1
+  },
+  {
+   "description": "The month it was left over from.",
+   "fieldname": "deferred_month",
+   "fieldtype": "Data",
+   "label": "Deferred Month",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nPartially Recovered\nCleared\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amounts_section",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "description": "What was owed that month.",
+   "fieldname": "original_amount",
+   "fieldtype": "Currency",
+   "label": "Original Amount",
+   "read_only": 1
+  },
+  {
+   "description": "What was taken.",
+   "fieldname": "applied_amount",
+   "fieldtype": "Currency",
+   "label": "Applied Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dd2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "What was left.",
+   "fieldname": "deferred_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Deferred Amount",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Still owed. Comes down as later payslips catch up.",
+   "fieldname": "balance_remaining",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Balance Remaining",
+   "read_only": 1
+  },
+  {
+   "fieldname": "recovery_section",
+   "fieldtype": "Section Break",
+   "label": "Recovery"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "recoveries",
+   "fieldtype": "Table",
+   "label": "Recoveries",
+   "options": "Deferred Deduction Recovery",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Deferred Deduction",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Deferred Deduction",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "HR User"
+  }
+ ],
+ "search_fields": "employee_name,salary_component,status",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

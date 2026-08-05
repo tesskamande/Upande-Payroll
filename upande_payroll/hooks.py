@@ -1,9 +1,87 @@
 app_name = "upande_payroll"
-app_title = "Upande Payroll Customizations"
+app_title = "Upande Payroll"
 app_publisher = "Teresia"
 app_description = "Kenyan Upande Payroll Customizations"
 app_email = "teresia@upande.com"
 app_license = "mit"
+
+fixtures = [
+	{
+		"dt": "Custom Field",
+		"prefix": "gratuity",
+		"filters": [["dt", "=", "Gratuity"], ["fieldname", "like", "custom_%"]],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "employee",
+		"filters": [
+			["dt", "=", "Employee"],
+			["fieldname", "in", [
+				"job_category",
+				"base_pay", "basic_pay", "previous_base_pay",
+				"custom_is_secondary_employment",
+				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
+				"custom_opt_out_of_housing_levy",
+				"custom_salary_expense_account",
+			]],
+		],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "leave_encashment",
+		"filters": [["dt", "=", "Leave Encashment"], ["fieldname", "like", "custom_%"]],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "salary_component",
+		"filters": [["dt", "=", "Salary Component"], ["fieldname", "like", "custom_%"]],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "salary_slip",
+		"filters": [
+			["dt", "=", "Salary Slip"],
+			["fieldname", "in", [
+				"custom_personal_relief_method",
+				"custom_personal_relief_section", "custom_personal_relief_brought_forward",
+				"custom_tax_charged",
+				"custom_personal_relief_available_this_month", "custom_personal_relief_carried_forward",
+				"column_break_relief", "custom_personal_relief_utilized", "custom_annual_personal_relief",
+				"custom_deduction_cap_section", "custom_wage_base_for_deduction_cap",
+				"custom_maximum_permitted_deduction", "column_break_deduction_cap",
+				"custom_deduction_cap_applied", "custom_unreducible_excess",
+				"custom_brought_forward_deductions", "custom_deferred_deductions",
+			]],
+		],
+	},
+	{
+		"dt": "Property Setter",
+		"prefix": "field_order",
+		"filters": [
+			["doc_type", "in", ["Employee", "Gratuity", "Leave Encashment", "Salary Component", "Salary Slip"]],
+			["property", "=", "field_order"],
+		],
+	},
+	{
+		"dt": "Property Setter",
+		"prefix": "salary_structure_open_tables",
+		"filters": [
+			["doc_type", "=", "Salary Structure"],
+			["property", "=", "allow_on_submit"],
+		],
+	},
+	{
+		"dt": "Property Setter",
+		"prefix": "gratuity_payment_mode",
+		"filters": [
+			["doc_type", "=", "Gratuity"],
+			["field_name", "in", [
+				"mode_of_payment", "expense_account", "payable_account",
+				"salary_component", "posting_date", "payroll_date",
+			]],
+		],
+	}
+]
 
 # Apps
 # ------------------
@@ -43,7 +121,14 @@ app_license = "mit"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+after_migrate = "upande_payroll.setup.after_migrate"
+after_install = "upande_payroll.setup.after_migrate"
+
+doctype_js = {
+	"Gratuity": "public/js/gratuity.js",
+	"Leave Encashment": "public/js/leave_encashment.js",
+	"Salary Slip": "public/js/salary_slip.js",
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -138,13 +223,40 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"Employee": {
+		"validate": "upande_payroll.cba_utils.validate_basic_pay_against_cba",
+	},
+	"Gratuity": {
+		"validate": "upande_payroll.gratuity_utils.calculate_gratuity",
+	},
+	"Leave Encashment": {
+		"validate": "upande_payroll.leave_encashment_utils.validate_leave_encashment",
+	},
+	"Journal Entry": {
+		"before_insert": "upande_payroll.payroll_journal.rewrite_payroll_journal",
+	},
+	"Leave Application": {
+		"on_submit": "upande_payroll.leave_travelling_allowance.create_lta",
+		"on_cancel": "upande_payroll.leave_travelling_allowance.cancel_lta",
+	},
+	# After the controller's own validate, so both component tables and the
+	# totals exist. The 1/3 rule has to see every deduction at once, which is
+	# why it can't sit in the regional_overrides hook with the statutory ones.
+	# The earnings and deductions tables are open after submit (Property Setter),
+	# so a component can be added without cancelling and re-assigning everyone.
+	# validate() doesn't run on a submitted save, so its checks are re-run here.
+	"Salary Structure": {
+		"before_update_after_submit": "upande_payroll.salary_structure_utils.validate_after_submit",
+	},
+	"Salary Slip": {
+		"validate": "upande_payroll.deduction_cap.apply_deduction_cap",
+		# The ledger only moves once the slip is real. validate runs on every
+		# save, including drafts that may never be submitted.
+		"on_submit": "upande_payroll.deduction_cap.settle_deferred_deductions",
+		"on_cancel": "upande_payroll.deduction_cap.unsettle_deferred_deductions",
+	},
+}
 
 # Scheduled Tasks
 # ---------------
@@ -176,9 +288,20 @@ app_license = "mit"
 # ------------------------------
 #
 # Specify custom mixins to extend the standard doctype controller.
-# extend_doctype_class = {
-# 	"Task": "upande_payroll.custom.task.CustomTaskMixin"
-# }
+extend_doctype_class = {
+	"Leave Encashment": "upande_payroll.leave_encashment_utils.LeaveEncashmentMixin",
+	"Overtime Slip": "upande_payroll.overtime_utils.OvertimeSlipMixin",
+}
+
+# Regional overrides for HRMS's own apply_regional_deductions hook point -
+# the first-class extension mechanism for country-specific Salary Slip
+# statutory deductions (same one core HRMS uses for India/UAE).
+regional_overrides = {
+	"Kenya": {
+		"hrms.payroll.doctype.salary_slip.salary_slip.apply_regional_deductions":
+			"upande_payroll.kenya_statutory_calculator.apply_regional_deductions",
+	},
+}
 
 # Overriding Methods
 # ------------------------------

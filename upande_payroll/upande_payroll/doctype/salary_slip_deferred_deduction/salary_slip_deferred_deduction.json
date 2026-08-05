@@ -1,0 +1,80 @@
+{
+ "actions": [],
+ "creation": "2026-08-02 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "salary_component",
+  "original_amount",
+  "applied_amount",
+  "deferred_amount",
+  "treatment",
+  "deferred_deduction"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "What was owed, including anything brought over from before.",
+   "fieldname": "original_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Original Amount",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "applied_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Applied Amount",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "deferred_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Deferred Amount",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "description": "Carry Forward: chased next month. Waive: let go.",
+   "fieldname": "treatment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Treatment",
+   "options": "Carry Forward\nWaive",
+   "read_only": 1
+  },
+  {
+   "fieldname": "deferred_deduction",
+   "fieldtype": "Link",
+   "label": "Deferred Deduction",
+   "options": "Deferred Deduction",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Salary Slip Deferred Deduction",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}

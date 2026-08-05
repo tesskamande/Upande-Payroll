@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:company",
+ "creation": "2026-08-02 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "company",
+  "column_break_dp1",
+  "wage_base",
+  "base_components",
+  "priority_section",
+  "deductions"
+ ],
+ "fields": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "column_break_dp1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Cash Wages",
+   "description": "The pay figure the two thirds is worked out on. Cash Wages is pay less absence, without benefits. Gross Pay is the payslip gross. Selected Earnings is just the components you pick below.",
+   "fieldname": "wage_base",
+   "fieldtype": "Select",
+   "label": "Wage Base",
+   "options": "Cash Wages\nGross Pay\nSelected Earnings",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.wage_base == \"Selected Earnings\"",
+   "description": "Pick the earnings that count. Leave out overtime and one-offs if you don't want them raising how much can be deducted.",
+   "fieldname": "base_components",
+   "fieldtype": "Table",
+   "label": "Base Components",
+   "mandatory_depends_on": "eval:doc.wage_base == \"Selected Earnings\"",
+   "options": "Deduction Priority Base Component"
+  },
+  {
+   "fieldname": "priority_section",
+   "fieldtype": "Section Break",
+   "label": "Deduction Priority"
+  },
+  {
+   "description": "List every deduction that's allowed to give way, and which group it's in. Anything you leave off is always taken in full, including PAYE, NSSF, SHIF and the Housing Levy.",
+   "fieldname": "deductions",
+   "fieldtype": "Table",
+   "label": "Deductions",
+   "options": "Deduction Priority Detail",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-02 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Deduction Priority",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "company",
+ "track_changes": 1
+}

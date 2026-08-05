@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "creation": "2026-08-02 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "salary_component",
+  "deduction_group",
+  "group_priority",
+  "priority",
+  "on_shortfall"
+ ],
+ "fields": [
+  {
+   "columns": 4,
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "description": "Which group this one is in.",
+   "fieldname": "deduction_group",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Deduction Group",
+   "options": "Deduction Group",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "description": "The group's priority.",
+   "fetch_from": "deduction_group.priority",
+   "fieldname": "group_priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Group Pri",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "description": "Only use this if this one should rank ahead of or behind the rest of its group, like sacco loans before sacco shares.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Override",
+   "non_negative": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "deduction_group.on_shortfall",
+   "fieldname": "on_shortfall",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "On Shortfall",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Deduction Priority Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}
