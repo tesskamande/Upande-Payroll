@@ -50,3 +50,43 @@ function open_leave_provision(frm) {
 			});
 		});
 }
+
+// The advanced filter box, the same one the Bulk Salary Structure Assignment
+// tool uses. Payroll Entry ships fixed filters for branch, department,
+// designation and grade; this covers everything else the Employee record
+// carries, for the runs those four cannot describe.
+frappe.ui.form.on("Payroll Entry", {
+	setup(frm) {
+		setup_advanced_filters(frm);
+	},
+});
+
+function setup_advanced_filters(frm) {
+	const wrapper = frm.fields_dict.filter_list?.$wrapper;
+	if (!wrapper) return;
+	wrapper.empty();
+
+	frappe.model.with_doctype("Employee", () => {
+		frm.employee_filter_group = new frappe.ui.FilterGroup({
+			parent: wrapper,
+			doctype: "Employee",
+			on_change: () => {
+				// [doctype, fieldname, condition, value] - the server wants the
+				// last three. A row still being built has no value yet, so it is
+				// left out rather than sent as a condition matching nothing.
+				const filters = frm.employee_filter_group
+					.get_filters()
+					.filter((row) => row[3])
+					.map((row) => row.slice(1, 4));
+
+				frm.set_value(
+					"advanced_employee_filters",
+					filters.length ? JSON.stringify(filters) : ""
+				);
+				// Same refresh the built-in filters use, so the employee list
+				// and the count stay in step with the box.
+				frm.trigger("get_employee_details");
+			},
+		});
+	});
+}

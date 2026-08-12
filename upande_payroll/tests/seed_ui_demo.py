@@ -441,25 +441,70 @@ def _wrap(text, width):
     return out
 
 
+def _seeded_provisions(employees):
+    """Leave Provisions whose every detail row is one of our TEST employees.
+
+    A provision carries no marker of its own, so this is the only honest way to
+    tell ours from a real one. With no TEST employees on the site it returns
+    nothing, which is the safe answer.
+    """
+    out = []
+    for name in frappe.get_all("Leave Provision", pluck="name"):
+        rows = frappe.get_all("Leave Provision Detail",
+                              filters={"parent": name}, pluck="employee")
+        if rows and all(emp in employees for emp in rows):
+            out.append(name)
+    return out
+
+
 def wipe():
-    """Remove everything this seeder made."""
+    """Remove everything this seeder made - and nothing else."""
     employees = frappe.get_all("Employee",
                               filters={"employee_name": ("like", "TEST %")},
                               pluck="name")
+
+    # Journal Entries and Leave Provisions carry no TEST marker, so they are
+    # found by what points at them rather than swept wholesale.
+    #
+    # This used to list both with filters of None and then exempt them from the
+    # "no filter, skip it" guard below, which meant frappe.get_all(...) with an
+    # empty filter - every Journal Entry on the site, cancelled and force
+    # deleted, committed per doctype. On a dev site that removed demo postings.
+    # Run against a client site it would have destroyed the whole general
+    # ledger, irreversibly.
+    provisions = _seeded_provisions(employees)
+    settlements = frappe.get_all(
+        "Terminal Dues Settlement", filters={"employee": ("in", employees)},
+        pluck="name") if employees else []
+
+    journals = [
+        je for je in (
+            (frappe.get_all("Leave Provision", filters={"name": ("in", provisions)},
+                            pluck="journal_entry") if provisions else [])
+            + (frappe.get_all("Terminal Dues Settlement",
+                              filters={"name": ("in", settlements)},
+                              pluck="journal_entry") if settlements else [])
+        ) if je
+    ]
+
+    # Journal Entries go last: cancelling a settlement or a provision cancels
+    # its own journal, so removing the journal first only produces "not found"
+    # noise on the way past.
     order = [
-        ("Journal Entry", None),
-        ("Leave Provision", None),
+        ("Leave Provision", {"name": ("in", provisions)} if provisions else None),
         ("Deferred Deduction", {"employee": ("in", employees)} if employees else None),
         ("Terminal Dues Settlement", {"employee": ("in", employees)} if employees else None),
         ("Salary Slip", {"employee": ("in", employees)} if employees else None),
         ("Leave Allocation", {"employee": ("in", employees)} if employees else None),
         ("Salary Structure Assignment", {"employee": ("in", employees)} if employees else None),
         ("Salary Structure", {"name": ("like", "DEMO %")}),
+        ("Journal Entry", {"name": ("in", journals)} if journals else None),
     ]
 
     removed = 0
     for doctype, filters in order:
-        if filters is None and doctype != "Journal Entry" and doctype != "Leave Provision":
+        # No exemptions. An unfiltered delete is never what this wants.
+        if filters is None:
             continue
         names = frappe.get_all(doctype, filters=filters or {}, pluck="name")
         for name in names:

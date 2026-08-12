@@ -356,6 +356,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.gross_pay_account_method == \"Single Account\"",
    "description": "The one account all salaries go to, like Salaries and Welfare.",
    "fieldname": "single_gross_pay_account",
    "fieldtype": "Link",

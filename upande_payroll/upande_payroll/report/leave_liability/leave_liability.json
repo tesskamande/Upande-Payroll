@@ -9,7 +9,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-08-04 00:00:00",
+ "modified": "2026-08-06 00:45:49.012386",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Leave Liability",
@@ -23,7 +23,7 @@
    "role": "HR Manager"
   },
   {
-   "role": "HR User"
+   "role": "Payroll Manager"
   },
   {
    "role": "System Manager"

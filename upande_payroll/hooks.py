@@ -127,6 +127,7 @@ after_migrate = "upande_payroll.setup.after_migrate"
 after_install = "upande_payroll.setup.after_migrate"
 
 doctype_js = {
+	"Employee": "public/js/employee.js",
 	"Gratuity": "public/js/gratuity.js",
 	"Leave Encashment": "public/js/leave_encashment.js",
 	"Payroll Entry": "public/js/payroll_entry.js",
@@ -294,6 +295,7 @@ doc_events = {
 extend_doctype_class = {
 	"Leave Encashment": "upande_payroll.leave_encashment_utils.LeaveEncashmentMixin",
 	"Overtime Slip": "upande_payroll.overtime_utils.OvertimeSlipMixin",
+	"Payroll Entry": "upande_payroll.payroll_entry_utils.PayrollEntryMixin",
 }
 
 # Regional overrides for HRMS's own apply_regional_deductions hook point -

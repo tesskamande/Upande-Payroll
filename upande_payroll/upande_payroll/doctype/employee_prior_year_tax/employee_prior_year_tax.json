@@ -1,0 +1,46 @@
+{
+ "actions": [],
+ "creation": "2026-08-06 02:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["assessment_year", "annual_taxable_pay", "paye_paid"],
+ "fields": [
+  {
+   "columns": 2,
+   "description": "Calendar year. Kenya's tax year runs January to December, so enter 2021, not 2021/2022.",
+   "fieldname": "assessment_year",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Assessment Year",
+   "reqd": 1
+  },
+  {
+   "columns": 4,
+   "description": "Chargeable pay for the whole year, as filed.",
+   "fieldname": "annual_taxable_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Annual Taxable Pay"
+  },
+  {
+   "columns": 4,
+   "description": "PAYE actually paid over that year, after reliefs.",
+   "fieldname": "paye_paid",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "PAYE Already Paid"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-06 02:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Employee Prior Year Tax",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "assessment_year",
+ "sort_order": "DESC",
+ "states": []
+}

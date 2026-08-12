@@ -71,13 +71,13 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "default": "Pending",
    "fieldname": "payment_status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Payment Status",
-   "options": "Pending\nSubmitted\nPaid",
-   "allow_on_submit": 1
+   "options": "Pending\nSubmitted\nPaid"
   },
   {
    "fieldname": "col_break_header",
@@ -130,11 +130,11 @@
    "reqd": 1
   },
   {
+   "description": "Whether you're paying the employee for notice, or charging them for it.",
    "fieldname": "notice_direction",
    "fieldtype": "Select",
    "label": "Notice Direction",
-   "options": "\nPayable to Employee\nDeduction from Employee",
-   "description": "Whether you're paying the employee for notice, or charging them for it."
+   "options": "\nPayable to Employee\nDeduction from Employee"
   },
   {
    "depends_on": "eval:doc.notice_direction",
@@ -295,6 +295,8 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -305,20 +307,6 @@
    "role": "HR Manager",
    "share": 1,
    "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "HR User",
-   "share": 1,
    "write": 1
   },
   {

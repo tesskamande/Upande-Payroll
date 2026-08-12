@@ -203,11 +203,6 @@
    "share": 1,
    "submit": 1,
    "write": 1
-  },
-  {
-   "read": 1,
-   "report": 1,
-   "role": "HR User"
   }
  ],
  "search_fields": "employee_name,salary_component,status",

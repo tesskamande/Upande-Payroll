@@ -236,6 +236,12 @@
    "write": 1
   },
   {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Payroll Manager"
+  },
+  {
    "amend": 1,
    "cancel": 1,
    "create": 1,
@@ -249,11 +255,6 @@
    "share": 1,
    "submit": 1,
    "write": 1
-  },
-  {
-   "read": 1,
-   "report": 1,
-   "role": "HR User"
   }
  ],
  "sort_field": "creation",

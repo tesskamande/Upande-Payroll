@@ -134,6 +134,7 @@ def apply_regional_deductions(doc):
 	insurance_relief = compute_insurance_relief(breakdown.insurance_premium, kenya_settings)
 
 	doc.custom_tax_charged = flt(gross_paye, 2)
+	_write_taxable_income(doc, flt(taxable_income, 2))
 	paye = max(gross_paye - relief_utilized - insurance_relief, 0.0)
 	_set_amount(doc, comp.paye, flt(paye, 2), allowed, by_formula)
 
@@ -371,6 +372,47 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 # from the Salary Component master (config-driven) instead of a hardcoded
 # per-component Python flag.
 # ----------------------------------------------------------------------
+
+# The chargeable pay the PAYE above was worked out on, written back onto the
+# payslip so the P9, P10 and the register report the figure that was actually
+# used rather than each recomputing it and drifting apart.
+#
+# Deliberately NOT part of STATUTORY_COMPONENTS: everything in that map is a
+# deduction the calculator writes, and callers build deduction rows from it.
+TAXABLE_INCOME_COMPONENT = "Taxable Income"
+
+
+def _write_taxable_income(doc, amount):
+	"""Put the chargeable pay on the payslip as its own earning row.
+
+	Rebuilt on every run rather than updated in place, so a slip saved twice
+	does not end up with two of them, and so a company that turns the
+	calculation off stops carrying a stale figure.
+
+	Carried as a deduction, matching the client structures. Flagged
+	do_not_include_in_total, so it reduces nothing: HRMS leaves it out of total
+	deductions, and the two thirds rule skips it as well (deduction_cap.py
+	filters on the same flag). Leave it unmapped in Salary Component Account and
+	it stays out of the payroll journal too - there is nothing to post.
+	"""
+	doc.deductions = [
+		row for row in (doc.deductions or [])
+		if row.salary_component != TAXABLE_INCOME_COMPONENT
+	]
+	if not frappe.db.exists("Salary Component", TAXABLE_INCOME_COMPONENT):
+		return
+
+	doc.append("deductions", {
+		"salary_component": TAXABLE_INCOME_COMPONENT,
+		"abbr": frappe.db.get_value(
+			"Salary Component", TAXABLE_INCOME_COMPONENT, "salary_component_abbr"
+		),
+		"amount": amount,
+		"do_not_include_in_total": 1,
+		"statistical_component": 0,
+		"depends_on_payment_days": 0,
+	})
+
 
 STATUTORY_COMPONENTS = frappe._dict({
 	"nssf_tier1_employee": "Employee NSSF Tier 1",

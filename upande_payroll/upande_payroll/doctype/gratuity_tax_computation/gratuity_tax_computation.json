@@ -7,6 +7,7 @@
  "field_order": [
   "gratuity_year",
   "gratuity_portion",
+  "exempt_amount",
   "annual_taxable_pay",
   "paye_already_paid",
   "revised_taxable_income",
@@ -69,6 +70,14 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Tax on Gratuity",
+   "read_only": 1
+  },
+  {
+   "description": "The part of this year's gratuity that is not taxed because it falls within the public pension scheme allowance.",
+   "fieldname": "exempt_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Exempt (Public Pension Scheme)",
    "read_only": 1
   }
  ],

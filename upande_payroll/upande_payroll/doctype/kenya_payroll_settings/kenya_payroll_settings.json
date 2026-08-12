@@ -3,9 +3,6 @@
  "creation": "2026-07-21 00:00:00.000000",
  "doctype": "DocType",
  "engine": "InnoDB",
- "issingle": 1,
- "istable": 0,
- "is_submittable": 0,
  "field_order": [
   "effective_from",
   "column_break_1",
@@ -40,7 +37,8 @@
   "other_allowable_deductions_section",
   "mortgage_interest_relief_cap",
   "column_break_allowable",
-  "post_retirement_medical_fund_cap"
+  "post_retirement_medical_fund_cap",
+  "gratuity_public_scheme_annual_exemption"
  ],
  "fields": [
   {
@@ -226,9 +224,19 @@
    "fieldname": "post_retirement_medical_fund_cap",
    "fieldtype": "Currency",
    "label": "Post-Retirement Medical Fund Cap"
+  },
+  {
+   "default": "360000",
+   "description": "How much of each year's gratuity is tax free when it is paid under a public pension scheme. KRA currently allows 360,000 a year. Only applies to employees ticked as being in such a scheme on their Employee record.",
+   "fieldname": "gratuity_public_scheme_annual_exemption",
+   "fieldtype": "Currency",
+   "label": "Gratuity Exemption Under a Public Pension Scheme"
   }
  ],
  "index_web_pages_for_search": 1,
+ "is_submittable": 0,
+ "issingle": 1,
+ "istable": 0,
  "links": [],
  "modified": "2026-07-21 00:00:00.000000",
  "modified_by": "Administrator",

@@ -12,7 +12,7 @@
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": null,
- "modified": "2026-08-04 16:59:38.739511",
+ "modified": "2026-08-06 00:45:49.012386",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Company Register",
@@ -24,6 +24,9 @@
  "roles": [
   {
    "role": "HR Manager"
+  },
+  {
+   "role": "Payroll Manager"
   },
   {
    "role": "System Manager"
