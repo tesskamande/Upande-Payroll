@@ -23,12 +23,9 @@
   "column_break_accounts",
   "liability_account",
   "result_section",
-  "employees",
   "total_liability",
-  "previous_provision",
-  "previous_liability",
-  "movement",
   "journal_entry",
+  "reversal_journal_entry",
   "amended_from"
  ],
  "fields": [
@@ -96,76 +93,75 @@
    "collapsible": 1,
    "fieldname": "basis_section",
    "fieldtype": "Section Break",
-   "label": "How It Is Valued (from Company Payroll Settings)"
+   "label": "How It Is Valued"
   },
   {
-   "description": "The component a day's pay is worked out from.",
+   "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "basic_pay_component",
    "fieldtype": "Link",
    "label": "Basic Pay Component",
    "options": "Salary Component",
-   "reqd": 1
+   "read_only": 1,
+   "reqd": 0
   },
   {
-   "description": "Basic pay is divided by this to get a day's pay. Keep it the same as your leave encashment divisor, or you will provide for less than you would actually pay out.",
+   "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "divisor",
    "fieldtype": "Int",
    "label": "Daily Rate Divisor",
    "non_negative": 1,
-   "reqd": 1
+   "read_only": 1,
+   "reqd": 0
   },
   {
    "fieldname": "column_break_basis",
    "fieldtype": "Column Break"
   },
   {
-   "description": "Which leave carries a liability. Usually only the leave you would have to pay out.",
+   "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "leave_types",
    "fieldtype": "Table",
    "label": "Leave Types",
    "options": "Leave Provision Leave Type",
-   "reqd": 1
+   "read_only": 1,
+   "reqd": 0
   },
   {
    "collapsible": 1,
    "fieldname": "accounts_section",
    "fieldtype": "Section Break",
-   "label": "Accounts (from Company Payroll Settings)"
+   "label": "Accounts"
   },
   {
-   "description": "Debited with the cost of leave earned but not taken.",
+   "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "expense_account",
    "fieldtype": "Link",
    "label": "Leave Expense Account",
    "options": "Account",
-   "reqd": 1
+   "read_only": 1,
+   "reqd": 0
   },
   {
    "fieldname": "column_break_accounts",
    "fieldtype": "Column Break"
   },
   {
-   "description": "Credited with what the company owes in untaken leave.",
+   "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "liability_account",
    "fieldtype": "Link",
    "label": "Leave Provision Account",
    "options": "Account",
-   "reqd": 1
+   "read_only": 1,
+   "reqd": 0
   },
   {
    "fieldname": "result_section",
    "fieldtype": "Section Break",
-   "label": "Working"
-  },
-  {
-   "fieldname": "employees",
-   "fieldtype": "Table",
-   "label": "Employees",
-   "options": "Leave Provision Detail",
-   "read_only": 1
+   "label": "Result"
   },
   {
    "bold": 1,
+   "description": "The whole obligation at the period end. This is what the journal posts; the per-employee working is in the Leave Liability report.",
    "fieldname": "total_liability",
    "fieldtype": "Currency",
    "label": "Total Liability",
@@ -189,25 +185,11 @@
    "read_only": 1
   },
   {
-   "description": "The last provision this one moves on from.",
-   "fieldname": "previous_provision",
+   "description": "Backs the provision out on the first day of the next period, so the next one can state its full liability.",
+   "fieldname": "reversal_journal_entry",
    "fieldtype": "Link",
-   "label": "Previous Provision",
-   "options": "Leave Provision",
-   "read_only": 1
-  },
-  {
-   "fieldname": "previous_liability",
-   "fieldtype": "Currency",
-   "label": "Previously Provided",
-   "read_only": 1
-  },
-  {
-   "bold": 1,
-   "description": "What this journal posts: the change since the last provision. Negative releases part of it because leave was taken.",
-   "fieldname": "movement",
-   "fieldtype": "Currency",
-   "label": "Movement",
+   "label": "Reversal Journal Entry",
+   "options": "Journal Entry",
    "read_only": 1
   }
  ],

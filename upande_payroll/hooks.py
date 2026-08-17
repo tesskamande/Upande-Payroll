@@ -18,7 +18,7 @@ fixtures = [
 			["dt", "=", "Employee"],
 			["fieldname", "in", [
 				"job_category",
-				"base_pay", "basic_pay", "previous_base_pay",
+				"basic_pay",
 				"custom_is_secondary_employment",
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
 				"custom_opt_out_of_housing_levy",
@@ -254,7 +254,12 @@ doc_events = {
 		"before_update_after_submit": "upande_payroll.salary_structure_utils.validate_after_submit",
 	},
 	"Salary Slip": {
-		"validate": "upande_payroll.deduction_cap.apply_deduction_cap",
+		# Merge first, so the two thirds rule sees one row per component rather
+		# than counting the same deduction twice over.
+		"validate": [
+			"upande_payroll.salary_slip_utils.merge_duplicate_components",
+			"upande_payroll.deduction_cap.apply_deduction_cap",
+		],
 		# The ledger only moves once the slip is real. validate runs on every
 		# save, including drafts that may never be submitted.
 		"on_submit": "upande_payroll.deduction_cap.settle_deferred_deductions",

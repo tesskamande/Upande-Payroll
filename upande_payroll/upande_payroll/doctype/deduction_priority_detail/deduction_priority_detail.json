@@ -8,7 +8,6 @@
   "salary_component",
   "deduction_group",
   "group_priority",
-  "priority",
   "on_shortfall"
  ],
  "fields": [
@@ -40,15 +39,6 @@
    "in_list_view": 1,
    "label": "Group Pri",
    "read_only": 1
-  },
-  {
-   "columns": 1,
-   "description": "Only use this if this one should rank ahead of or behind the rest of its group, like sacco loans before sacco shares.",
-   "fieldname": "priority",
-   "fieldtype": "Int",
-   "in_list_view": 1,
-   "label": "Override",
-   "non_negative": 1
   },
   {
    "columns": 2,

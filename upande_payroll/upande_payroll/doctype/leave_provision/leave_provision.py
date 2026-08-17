@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, getdate, today
+from frappe.utils import add_days, flt, getdate, today
 
 GROUP_FIELDS = {
 	"Department": "department",
@@ -34,22 +34,11 @@ class LeaveProvision(Document):
 		self.validate_accounts()
 		self.validate_no_overlap()
 		self.build_lines()
-		self.measure_movement()
 
 	def on_submit(self):
-		if not self.employees:
+		if not self.lines():
 			frappe.throw(_("Nothing to provide for - no employee has a leave balance."))
-		if not flt(self.movement):
-			# Nothing has changed since the last provision, so there is nothing
-			# to post. Writing a zero journal would only add noise to the ledger.
-			frappe.msgprint(
-				_("The liability is unchanged at {0}, so no journal was needed.")
-				.format(frappe.format_value(flt(self.total_liability),
-											{"fieldtype": "Currency"})),
-				indicator="blue",
-			)
-		else:
-			self.create_journal_entry()
+		self.create_journal_entry()
 		self.db_set("status", "Submitted")
 
 	def on_cancel(self):
@@ -79,22 +68,44 @@ class LeaveProvision(Document):
 		if not self.posting_date:
 			self.posting_date = today()
 
-		if not self.company or not frappe.db.exists("Company Payroll Settings", self.company):
+		if not self.company:
 			return
+
+		if not frappe.db.exists("Company Payroll Settings", self.company):
+			frappe.throw(_(
+				"{0} has no Company Payroll Settings, so there is nothing to "
+				"provide leave against. Set them up first."
+			).format(self.company))
+
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
 
-		if not self.basic_pay_component:
-			self.basic_pay_component = settings.leave_provision_basic_pay_component
-		if not self.divisor:
-			self.divisor = settings.leave_provision_divisor
-		if not self.expense_account:
-			self.expense_account = settings.leave_provision_expense_account
-		if not self.liability_account:
-			self.liability_account = settings.leave_provision_liability_account
+		self.basic_pay_component = settings.leave_provision_basic_pay_component
+		self.divisor = settings.leave_provision_divisor
+		self.expense_account = settings.leave_provision_expense_account
+		self.liability_account = settings.leave_provision_liability_account
 
-		if not self.leave_types:
-			for row in settings.leave_provision_leave_types or []:
-				self.append("leave_types", {"leave_type": row.leave_type})
+		self.set("leave_types", [])
+		for row in settings.leave_provision_leave_types or []:
+			self.append("leave_types", {"leave_type": row.leave_type})
+
+		# Say which setting is missing, by its name on the settings form. These
+		# fields are read-only here, so a blank one cannot be filled in on this
+		# document - without this the run would stop on "value missing" against a
+		# field nobody can type into.
+		missing = [
+			label for value, label in (
+				(self.basic_pay_component, "Leave Provision Basic Pay Component"),
+				(self.divisor, "Leave Provision Divisor"),
+				(self.expense_account, "Leave Provision Expense Account"),
+				(self.liability_account, "Leave Provision Liability Account"),
+				(self.leave_types, "Leave Provision Leave Types"),
+			) if not value
+		]
+		if missing:
+			frappe.throw(_(
+				"Set the following in Company Payroll Settings for {0}, then try "
+				"again: {1}."
+			).format(self.company, ", ".join(missing)))
 
 	def validate_accounts(self):
 		"""An expense account for the expense, a liability for the liability.
@@ -171,7 +182,7 @@ class LeaveProvision(Document):
 			order_by="name",
 		)
 
-		self.set("employees", [])
+		lines = []
 		total = 0.0
 		as_at = getdate(self.to_date)
 
@@ -190,7 +201,7 @@ class LeaveProvision(Document):
 
 				liability = flt(daily_rate * balance, 2)
 				total += liability
-				self.append("employees", {
+				lines.append(frappe._dict({
 					"employee": employee.name,
 					"employee_name": employee.employee_name,
 					"grouping": (employee.get(group_field) if group_field else None)
@@ -200,9 +211,23 @@ class LeaveProvision(Document):
 					"daily_rate": daily_rate,
 					"leave_balance": balance,
 					"liability": liability,
-				})
+				}))
 
+		self._lines = lines
 		self.total_liability = flt(total, 2)
+		return lines
+
+	def lines(self):
+		"""The per-employee working, worked out rather than stored.
+
+		It used to be a grid on the document. Kept out of the way now: it is the
+		same figure the Leave Liability report shows, employee by employee, so
+		the substantiation an auditor wants is still there without a hundred rows
+		sitting on every provision.
+		"""
+		if getattr(self, "_lines", None) is None:
+			self.build_lines()
+		return self._lines
 
 	def basic_pay_for(self, employee):
 		"""Basic pay from the last payslip on or before the provision date.
@@ -243,114 +268,118 @@ class LeaveProvision(Document):
 
 	# ------------------------------------------------------------------
 
-	def measure_movement(self):
-		"""What has changed since the last provision.
-
-		The total liability is what the company would have to find if nobody
-		took their leave - a standing figure, not something that accumulates.
-		Post it again in full each period and the provision account grows to a
-		multiple of the real liability. So the journal carries the movement, and
-		the account is left holding the current total.
-		"""
-		previous = frappe.db.sql(
-			"""
-			SELECT name, total_liability
-			FROM `tabLeave Provision`
-			WHERE company = %(company)s AND docstatus = 1 AND name != %(name)s
-				AND to_date < %(to_date)s
-			ORDER BY to_date DESC, creation DESC
-			LIMIT 1
-			""",
-			{"company": self.company, "name": self.name or "", "to_date": self.to_date},
-			as_dict=True,
-		)
-
-		self.previous_provision = previous[0].name if previous else None
-		self.previous_liability = flt(previous[0].total_liability) if previous else 0.0
-		self.movement = flt(flt(self.total_liability) - flt(self.previous_liability), 2)
-
 	def group_totals(self):
 		grouped = {}
-		for row in self.employees:
+		for row in self.lines():
 			key = row.grouping or _("Unassigned")
 			grouped.setdefault(key, {"amount": 0.0, "people": 0})
 			grouped[key]["amount"] += flt(row.liability)
 			grouped[key]["people"] += 1
 		return grouped
 
-	def previous_group_totals(self):
-		if not self.previous_provision:
-			return {}
-		rows = frappe.get_all(
-			"Leave Provision Detail",
-			filters={"parent": self.previous_provision, "parenttype": "Leave Provision"},
-			fields=["grouping", "liability"],
-		)
-		totals = {}
-		for row in rows:
-			key = row.grouping or _("Unassigned")
-			totals[key] = totals.get(key, 0.0) + flt(row.liability)
-		return totals
-
 	def create_journal_entry(self):
-		"""Post the change per group, and the net against the provision account.
+		"""Post the whole liability, then reverse it on the first day after.
 
-		A group whose liability fell gets a credit rather than being left out:
-		leave that was taken has to come back off the provision, or the account
-		keeps carrying people who have already been paid.
+		The reversing method: each period states the full obligation rather than
+		the change since last time, and the entry is backed out at the start of
+		the next period so the following provision can state its own full figure
+		without doubling up. Reverse plus re-state nets to the same closing
+		liability, and the same charge to the P&L, as posting only the movement -
+		what it changes is that every period's journal reads as the liability in
+		its own right.
+
+		One expense line per group, so the departmental split is on the face of
+		the journal instead of only in a report.
 		"""
-		current = self.group_totals()
-		previous = self.previous_group_totals()
+		groups = self.group_totals()
+		total = flt(self.total_liability, 2)
+		if not total:
+			frappe.throw(_("The liability comes to nil, so there is nothing to post."))
 
 		accounts = []
-		for group in sorted(set(current) | set(previous)):
-			now = flt(current.get(group, {}).get("amount", 0.0), 2)
-			before = flt(previous.get(group, 0.0), 2)
-			change = flt(now - before, 2)
-			if not change:
+		for group in sorted(groups):
+			amount = flt(groups[group]["amount"], 2)
+			if not amount:
 				continue
-
-			people = current.get(group, {}).get("people", 0)
 			accounts.append({
 				"account": self.expense_account,
-				"debit_in_account_currency": change if change > 0 else 0,
-				"credit_in_account_currency": -change if change < 0 else 0,
-				"user_remark": (
-					_("{0} - leave earned but not taken ({1} employees)")
-					.format(group, people) if change > 0
-					else _("{0} - leave taken, provision released").format(group)
-				),
+				"debit_in_account_currency": amount,
+				"credit_in_account_currency": 0,
+				"user_remark": _("{0} - {1} employees").format(
+					group, groups[group]["people"]),
 			})
 
-		net = flt(self.movement, 2)
 		accounts.append({
 			"account": self.liability_account,
-			"debit_in_account_currency": -net if net < 0 else 0,
-			"credit_in_account_currency": net if net > 0 else 0,
+			"debit_in_account_currency": 0,
+			"credit_in_account_currency": total,
 			"user_remark": _("Leave provision {0} to {1}")
 						   .format(self.from_date, self.to_date),
 		})
 
+		remark = self.journal_remark(groups)
+
+		provision = self.post_journal(self.posting_date, accounts, remark)
+		self.db_set("journal_entry", provision)
+
+		# The day after the provision was posted, not the day after the period.
+		# Those are the same date when a provision is raised on time, but a July
+		# provision posted in August would otherwise reverse on 1 August - before
+		# the entry it reverses, which reads as nonsense in the ledger and leaves
+		# the liability standing. Following the posting date keeps the reversal
+		# after the provision whenever it is actually raised.
+		reversal = self.post_journal(
+			add_days(getdate(self.posting_date), 1),
+			[self.mirror(row) for row in accounts],
+			_("Reversal of {0}").format(remark),
+		)
+		self.db_set("reversal_journal_entry", reversal)
+
+	@staticmethod
+	def mirror(row):
+		"""The same line the other way round."""
+		flipped = dict(row)
+		flipped["debit_in_account_currency"] = row["credit_in_account_currency"]
+		flipped["credit_in_account_currency"] = row["debit_in_account_currency"]
+		return flipped
+
+	def journal_remark(self, groups):
+		"""Name the period and what each group carries.
+
+		The departments belong on the remark: whoever opens the journal in the
+		general ledger months later sees where the liability sits without going
+		back to the provision that raised it.
+		"""
+		split = ", ".join(
+			"{0} {1:,.2f}".format(group, flt(groups[group]["amount"], 2))
+			for group in sorted(groups) if flt(groups[group]["amount"], 2)
+		)
+		return _("Leave provision {0} | {1} to {2} | {3}").format(
+			self.name, self.from_date, self.to_date, split or _("no split"))
+
+	def post_journal(self, posting_date, accounts, remark):
 		journal = frappe.get_doc({
 			"doctype": "Journal Entry",
 			"voucher_type": "Journal Entry",
 			"company": self.company,
-			"posting_date": self.posting_date,
-			"user_remark": _("Leave provision {0}, {1} to {2}")
-						   .format(self.name, self.from_date, self.to_date),
+			"posting_date": posting_date,
+			"user_remark": remark,
 			"accounts": accounts,
 		})
 		journal.flags.ignore_permissions = True
 		journal.insert()
 		journal.submit()
-		self.db_set("journal_entry", journal.name)
+		return journal.name
 
 	def cancel_journal_entry(self):
-		if not self.journal_entry:
-			return
-		if not frappe.db.exists("Journal Entry", self.journal_entry):
-			return
-		journal = frappe.get_doc("Journal Entry", self.journal_entry)
-		if journal.docstatus == 1:
-			journal.flags.ignore_permissions = True
-			journal.cancel()
+		"""Cancel both entries. The reversal goes first: leaving it behind while
+		the provision it reverses is gone would credit the expense account for a
+		charge that no longer exists."""
+		for fieldname in ("reversal_journal_entry", "journal_entry"):
+			name = self.get(fieldname)
+			if not name or not frappe.db.exists("Journal Entry", name):
+				continue
+			journal = frappe.get_doc("Journal Entry", name)
+			if journal.docstatus == 1:
+				journal.flags.ignore_permissions = True
+				journal.cancel()

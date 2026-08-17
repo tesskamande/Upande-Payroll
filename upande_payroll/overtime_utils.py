@@ -28,13 +28,20 @@ class OvertimeSlipMixin:
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
 		if not settings.enable_overtime_calculation:
 			return super().on_submit()
-		self.process_overtime_slip(settings)
+		self._compute_overtime(settings)
 
-	def process_overtime_slip(self, settings):
-		component_totals = self.get_overtime_component_amounts(settings)
+	# Named apart from core's process_overtime_slip/get_overtime_component_amounts
+	# on purpose. extend_doctype_class puts this mixin ahead of HRMS in the
+	# method resolution order, so same-named methods here are what self.<name>
+	# reaches - including from core's own on_submit, which calls them with no
+	# arguments. Sharing the names meant that path died with "missing 1 required
+	# positional argument: settings", and that path is exactly the documented way
+	# to keep core's behaviour: turn overtime calculation off.
+	def _compute_overtime(self, settings):
+		component_totals = self._overtime_component_amounts(settings)
 		self._replace_additional_salary(component_totals)
 
-	def get_overtime_component_amounts(self, settings):
+	def _overtime_component_amounts(self, settings):
 		if not self.overtime_details:
 			return {}
 

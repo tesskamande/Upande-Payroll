@@ -22,6 +22,17 @@ def rewrite_payroll_journal(doc, method=None):
 	Only the debit side varies between companies. Deductions, employer
 	contributions, loans and net pay behave identically everywhere.
 	"""
+	# The accrual entry only. Core tags the Payroll Payable row of the salary
+	# PAYMENT entry with the same reference_type, so the reference alone does
+	# not tell the two apart - without this, clicking Make Bank Entry rebuilds
+	# the payment as a second accrual: expense and every statutory liability
+	# posted twice, Payroll Payable at 2x instead of cleared, and the bank never
+	# credited. It balances, so nothing complains.
+	#
+	# The Server Script this replaced opened with the same check.
+	if doc.voucher_type != "Journal Entry":
+		return
+
 	payroll_entry = _find_payroll_entry(doc)
 	if not payroll_entry:
 		return

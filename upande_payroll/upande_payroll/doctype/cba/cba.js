@@ -21,8 +21,19 @@ function update_row_calc(frm, cdt, cdn) {
 }
 
 frappe.ui.form.on("CBA", {
+	company(frm) {
+		carry_forward_rates(frm);
+	},
+
+	effective_start_date(frm) {
+		carry_forward_rates(frm);
+	},
+
 	refresh(frm) {
-		if (frm.doc.docstatus === 1) {
+		// Once applied, the button goes. Pressing it again would add the
+		// increase a second time, and there is nothing to catch up on: the
+		// Employee form will not accept anyone below the agreed rate.
+		if (frm.doc.docstatus === 1 && !frm.doc.applied_on) {
 			frm.add_custom_button(
 				__("Apply CBA to Employees"),
 				() => {
@@ -52,3 +63,49 @@ frappe.ui.form.on("CBA", {
 		}
 	},
 });
+
+// Fill the pay table from the company's last agreement, so what has to be
+// entered is this round's percentage rather than every rate from scratch.
+// Only ever on an empty table - rates already entered are left alone.
+function carry_forward_rates(frm) {
+	// Both are needed before the source can be chosen. Filling on the company
+	// alone would take the most recent agreement, which is the wrong one for a
+	// round being backdated - so it waits for the start date.
+	if (!frm.doc.company || !frm.doc.effective_start_date) return;
+	if ((frm.doc.table_dqro || []).length) return;
+
+	frappe.call({
+		method: "upande_payroll.upande_payroll.doctype.cba.cba.previous_rates",
+		args: {
+			company: frm.doc.company,
+			before: frm.doc.effective_start_date,
+			exclude: frm.doc.name,
+		},
+		callback: (r) => {
+			const rows = r.message || [];
+			if (!rows.length) {
+				frappe.show_alert({
+					message: __("No agreement runs before {0} for this company - the pay table starts empty.", [
+						frappe.datetime.str_to_user(frm.doc.effective_start_date),
+					]),
+					indicator: "orange",
+				});
+				return;
+			}
+
+			rows.forEach((row) => {
+				const child = frm.add_child("table_dqro");
+				child.job_category = row.job_category;
+				child.current_basic_pay = row.current_basic_pay;
+			});
+			frm.refresh_field("table_dqro");
+			frappe.show_alert({
+				message: __("Rates carried forward from {0}, effective {1}.", [
+					rows[0].source,
+					frappe.datetime.str_to_user(rows[0].source_from),
+				]),
+				indicator: "green",
+			});
+		},
+	});
+}

@@ -39,7 +39,7 @@ STATUTORY_COMPONENTS = [
 	# do_not_include_in_total so it touches neither gross nor net, and left
 	# without an account so it never reaches the payroll journal.
 	{"salary_component": "Taxable Income", "salary_component_abbr": "TXI",
-	 "do_not_include_in_total": 1,
+	 "do_not_include_in_total": 1, "do_not_include_in_accounts": 1,
 	 "statistical_component": 0, "remove_if_zero_valued": 0,
 	 "depends_on_payment_days": 0,
 	 "description": "The pay this month's PAYE was charged on. It is shown for "
@@ -377,14 +377,20 @@ def ensure_statutory_fields():
 	create_custom_fields(STATUTORY_FIELDS)
 	remove_retired_fields()
 	remove_retired_doctypes()
-	group_salary_tab()
 	frappe.db.commit()
 
 
 # Fields this app used to add and no longer wants. Removed on every site, not
 # just the one they were noticed on - a field left behind keeps rendering.
 RETIRED_FIELDS = {
-	"Employee": ["payroll_earnings_section", "payroll_deductions_section"],
+	"Employee": ["payroll_earnings_section", "payroll_deductions_section",
+				 # Dropped: a salary slip already records what someone was on,
+				 # period by period, where one field could only hold the last
+				 # change.
+				 "previous_base_pay",
+				 # Written by the CBA and read by nothing. The increment checks
+				 # Basic Pay, and so would a performance rise.
+				 "base_pay"],
 }
 
 # Doctypes this app shipped and then replaced. Employee Annual Tax Record held
@@ -444,96 +450,16 @@ def _drop_from_field_order(doctype, fieldnames):
 							frappe.as_json(kept), update_modified=False)
 
 
-def group_salary_tab():
-	"""Put this app's Employee fields under headings instead of a flat run.
-
-	Without this they land one after another on the Salary tab in whatever order
-	they were created, so a payroll clerk reads base pay, an opt-out and an
-	expense account as one undifferentiated list.
-	"""
-	# Anchored to the end of the salary block HRMS already builds, not to
-	# salary_mode: employee_advance_account is anchored there too, and two
-	# fields claiming one slot leaves the loser floating to the bottom of the
-	# form. The existing run is salary_mode > employee_advance_account >
-	# salary_cb > payroll_cost_center, so ours picks up after it.
-	ANCHOR = "payroll_cost_center"
-
-	# No Earnings or Deductions headings. They were added to break up a flat
-	# run, but they moved the pay figures and the statutory opt-outs away from
-	# where people were used to finding them - straight after Payroll Cost
-	# Center. The two section breaks are retired in remove_retired_fields().
-	salary_run = [
-		"base_pay", "basic_pay", "previous_base_pay",
-		"custom_is_secondary_employment",
-		"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
-		"custom_opt_out_of_housing_levy", "custom_salary_expense_account",
-		"union_membership_section", "union_member", "union",
-		"terminal_benefits_section", "paid_under_public_pension_scheme",
-	]
-	# Job Category classifies the person, it is not a pay figure, so it belongs
-	# with Designation on the Overview tab rather than in the salary run.
-	_pin(["job_category"], "designation", start=90)
-	_pin(salary_run, ANCHOR, start=100)
-
-	_splice_into_field_order(["job_category"], "designation")
-	_splice_into_field_order(salary_run, ANCHOR)
-	frappe.clear_cache(doctype="Employee")
-
-
-def _pin(order, anchor, start):
-	"""Set insert_after and idx so a run of fields reads in the given order.
-
-	idx as well as insert_after: Frappe walks custom fields in idx order and
-	resolves each against what it has placed so far, so a field whose anchor has
-	not been reached yet drops to the bottom of the form. HRMS's own custom
-	fields sit at idx 0, so ours start well clear of them.
-	"""
-	previous = anchor
-	for position, fieldname in enumerate(order, start=start):
-		name = frappe.db.get_value(
-			"Custom Field", {"dt": "Employee", "fieldname": fieldname}, "name"
-		)
-		if not name:
-			continue
-		frappe.db.set_value(
-			"Custom Field", name,
-			{"insert_after": previous, "idx": position},
-			update_modified=False,
-		)
-		previous = fieldname
-
-
-def _splice_into_field_order(order, anchor):
-	"""Put our fields into the saved field order, if the site pins one.
-
-	A field_order Property Setter lists the whole form and Frappe follows it
-	literally, so anything missing from the list lands at the bottom however it
-	is anchored. Customising the Employee form once is enough to create one, and
-	from then on insert_after alone will not place a new field.
-	"""
-	setter = frappe.db.get_value(
-		"Property Setter",
-		{"doc_type": "Employee", "property": "field_order"},
-		["name", "value"],
-		as_dict=True,
-	)
-	if not setter:
-		return
-
-	fields = frappe.parse_json(setter.value) or []
-	if not fields:
-		return
-
-	remaining = [f for f in fields if f not in order]
-	if anchor not in remaining:
-		return
-
-	at = remaining.index(anchor) + 1
-	frappe.db.set_value(
-		"Property Setter", setter.name,
-		"value", frappe.as_json(remaining[:at] + list(order) + remaining[at:]),
-		update_modified=False,
-	)
+# Nothing here reorders the Employee form any more.
+#
+# It used to place this app's fields on every migrate, so a field moved on the
+# form was dragged back the next time anyone migrated - repeatedly, and with no
+# indication why. Placing a new field is a one-off job for whoever adds it;
+# fighting the form on a schedule is not worth the confusion it causes.
+#
+# New fields get their position from insert_after when they are created. If a
+# site pins its own field order, a newly added field lands at the bottom of the
+# form and has to be dragged into place once, by hand.
 
 
 def open_salary_structure_tables():

@@ -17,6 +17,28 @@ class PayrollEntryMixin:
 	here or it never reaches the query.
 	"""
 
+	def get_salary_slip_details(self, for_withheld_salaries=False):
+		"""The rows the bank entry is worked out from, without the employer's
+		own contributions.
+
+		make_bank_entry() adds up every earning on the slips and takes off every
+		deduction, and an employer contribution is carried as a deduction so it
+		gets taken off too - money the employee never bore, subtracted from what
+		the bank pays them. A run of four came to 161,523.95 against a net pay of
+		179,373.95, short by exactly the employer NSSF and Housing Levy.
+
+		Filtered here rather than by flagging the components, because the two
+		flags that would exclude them from this also exclude them from the
+		accrual (payroll_entry.py:394), where they belong - expense debited,
+		liability to the fund credited. This is the only caller of this method,
+		so nothing else is affected.
+		"""
+		rows = super().get_salary_slip_details(for_withheld_salaries)
+		employer_side = employer_contribution_components()
+		if not employer_side:
+			return rows
+		return [row for row in rows if row.salary_component not in employer_side]
+
 	def make_filters(self):
 		filters = super().make_filters()
 		for fieldname in EXTRA_FILTERS:
@@ -74,7 +96,7 @@ def patch_filter_conditions():
 			# between, is set and the rest, and a hand-written translation of
 			# those is where a payroll filter starts quietly matching the wrong
 			# people.
-			scoped = list(advanced)
+			scoped = _combine_same_field(advanced)
 			if filters.get("company"):
 				scoped.append(["company", "=", filters["company"]])
 
@@ -90,3 +112,52 @@ def patch_filter_conditions():
 
 
 patch_filter_conditions()
+
+
+def employer_contribution_components():
+	"""Components the employer pays on top of wages, rather than out of them."""
+	return {
+		row.name
+		for row in frappe.get_all(
+			"Salary Component",
+			filters={"custom_is_employer_contribution": 1},
+			fields=["name"],
+		)
+	}
+
+
+def _combine_same_field(conditions):
+	"""Turn repeated equals on one field into a single "any of these".
+
+	Conditions are ANDed, which is right across different fields - grade AND
+	department narrows, as it should. On the SAME field it is never what anyone
+	means: two rows reading Employment Type equals Contract and Employment Type
+	equals Apprentice asks for somebody who is both, and matches nobody. Read as
+	"either", which is what was intended, it returns both groups.
+
+	Only plain equals is folded. like, between, greater than and the rest keep
+	their AND, because combining those changes what they ask rather than
+	clarifying it.
+	"""
+	equals, others, order = {}, [], []
+
+	for condition in conditions:
+		fieldname, operator, value = condition[0], condition[1], condition[2]
+		if str(operator).strip().lower() not in ("=", "equals"):
+			others.append(condition)
+			continue
+		if fieldname not in equals:
+			equals[fieldname] = []
+			order.append(fieldname)
+		if value not in equals[fieldname]:
+			equals[fieldname].append(value)
+
+	combined = []
+	for fieldname in order:
+		values = equals[fieldname]
+		combined.append(
+			[fieldname, "=", values[0]] if len(values) == 1
+			else [fieldname, "in", values]
+		)
+
+	return combined + others

@@ -159,13 +159,13 @@ def _priority_rules(config):
 				"Deduction Group", row.deduction_group
 			)
 		group = groups[row.deduction_group]
-		# A row may rank itself. Karen Roses' own list is the reason: their
-		# COOPERATIVE group spans six levels, because a sacco loan and a sacco
-		# share are the same kind of deduction but not the same claim. Blank
-		# means "rank with the rest of the group".
+		# Rank comes from the group, and only from the group. A row used to be
+		# able to override it, which meant two deductions sitting in the same
+		# group could behave differently with nothing on the form to say why.
+		# Anything that needs its own rank needs its own group.
 		rules[row.salary_component] = frappe._dict({
 			"group": group.name,
-			"priority": flt(row.priority) if flt(row.priority) else flt(group.priority),
+			"priority": flt(group.priority),
 			"reducible": bool(group.reducible),
 			"on_shortfall": group.on_shortfall or "Carry Forward",
 			"tie_breaker": group.tie_breaker or "Pro-rata",

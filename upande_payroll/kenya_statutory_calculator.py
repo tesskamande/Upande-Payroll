@@ -134,7 +134,7 @@ def apply_regional_deductions(doc):
 	insurance_relief = compute_insurance_relief(breakdown.insurance_premium, kenya_settings)
 
 	doc.custom_tax_charged = flt(gross_paye, 2)
-	_write_taxable_income(doc, flt(taxable_income, 2))
+	_write_taxable_income(doc, flt(taxable_income, 2), comp.paye in (allowed or set()))
 	paye = max(gross_paye - relief_utilized - insurance_relief, 0.0)
 	_set_amount(doc, comp.paye, flt(paye, 2), allowed, by_formula)
 
@@ -382,8 +382,13 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 TAXABLE_INCOME_COMPONENT = "Taxable Income"
 
 
-def _write_taxable_income(doc, amount):
-	"""Put the chargeable pay on the payslip as its own earning row.
+def _write_taxable_income(doc, amount, paye_applies):
+	"""Put the chargeable pay on the payslip as its own deduction row.
+
+	Written only where the structure actually charges PAYE. A task worker whose
+	structure omits it is not taxed at all, so a chargeable pay figure on their
+	payslip would state a base nothing was ever charged on - and would show as a
+	statutory row on a slip meant to carry none.
 
 	Rebuilt on every run rather than updated in place, so a slip saved twice
 	does not end up with two of them, and so a company that turns the
@@ -399,6 +404,10 @@ def _write_taxable_income(doc, amount):
 		row for row in (doc.deductions or [])
 		if row.salary_component != TAXABLE_INCOME_COMPONENT
 	]
+	if not paye_applies:
+		return
+	if not paye_applies:
+		return
 	if not frappe.db.exists("Salary Component", TAXABLE_INCOME_COMPONENT):
 		return
 
@@ -409,6 +418,11 @@ def _write_taxable_income(doc, amount):
 		),
 		"amount": amount,
 		"do_not_include_in_total": 1,
+		# Both flags, on the ROW. Payroll Entry decides what needs a GL account
+		# from the payslip row and not from the component master, so a component
+		# flagged out of accounting still fails submission with "Please set
+		# account in Salary Component" unless the row says so too.
+		"do_not_include_in_accounts": 1,
 		"statistical_component": 0,
 		"depends_on_payment_days": 0,
 	})
@@ -537,14 +551,30 @@ def _set_amount(salary_slip, component_name, amount, allowed=None, by_formula=No
 		return 0.0
 
 	# do_not_include_in_total alone keeps employer contributions out of net pay
-	# (salary_slip.py's get_component_totals skips on that flag only). The
-	# statistical flag is deliberately NOT set: on the Salary Component master
-	# it hides the Accounts child table, leaving the component's GL accounts
-	# unconfigurable, and a statistical component never becomes a slip row at
-	# all - so the payroll Journal Entry would have nothing to post from.
+	# (salary_slip.py's get_component_totals skips on that flag only).
+	#
+	# do_not_include_in_accounts is deliberately NOT set with it. That flag is
+	# read in two places, not one: it drops the row from the bank entry
+	# (payroll_entry.py:988) but also from the accrual (payroll_entry.py:394),
+	# and an employer contribution genuinely belongs in the accrual - expense
+	# debited, liability to the fund credited.
+	#
+	# KNOWN ISSUE: because the row stays in accounts, Payroll Entry subtracts it
+	# when working out what the bank pays. See payroll_entry.py:927 onwards -
+	# every non-statistical deduction row is taken off the total. A run of four
+	# employees paid 161,523.95 against a net pay of 179,373.95, short by
+	# exactly the employer NSSF and Housing Levy. Setting the flag fixes the
+	# payment and breaks the accrual, so it is not the answer.
+	#
+	# The statistical flag is what core skips on in that loop, and it does NOT
+	# hide the Accounts child table (Salary Component's accounts field carries
+	# no depends_on) - but a statistical component never becomes a slip row, so
+	# the payroll journal would have nothing to read.
+	employer_side = 1 if component_doc.custom_is_employer_contribution else 0
+
 	if existing:
 		existing.amount = amount
-		existing.do_not_include_in_total = 1 if component_doc.custom_is_employer_contribution else 0
+		existing.do_not_include_in_total = employer_side
 		return amount
 
 	row = {
@@ -552,7 +582,7 @@ def _set_amount(salary_slip, component_name, amount, allowed=None, by_formula=No
 		"abbr": component_doc.salary_component_abbr,
 		"amount": amount,
 	}
-	if component_doc.custom_is_employer_contribution:
+	if employer_side:
 		row["do_not_include_in_total"] = 1
 	salary_slip.append("deductions", row)
 	return amount
