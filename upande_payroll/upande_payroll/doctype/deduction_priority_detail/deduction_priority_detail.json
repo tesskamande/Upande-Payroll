@@ -17,6 +17,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]",
    "options": "Salary Component",
    "reqd": 1
   },

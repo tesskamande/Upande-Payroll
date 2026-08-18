@@ -56,3 +56,6 @@ jspm_packages/
 
 # Working notes and review artefacts - kept locally, not part of the app
 docs/
+
+# Demo seeder - a local testing aid, not part of the app
+upande_payroll/tests/seed_ui_demo.py
