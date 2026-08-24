@@ -1,11 +1,12 @@
 {
  "actions": [],
- "creation": "2026-08-02 00:00:00.000000",
+ "creation": "2026-08-02 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "salary_component",
+  "loan_product",
   "deduction_group",
   "group_priority",
   "on_shortfall"
@@ -13,13 +14,14 @@
  "fields": [
   {
    "columns": 4,
+   "description": "Leave empty and set Loan Product instead to rank a loan.",
    "fieldname": "salary_component",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Salary Component",
    "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]",
    "options": "Salary Component",
-   "reqd": 1
+   "read_only_depends_on": "eval:doc.loan_product"
   },
   {
    "columns": 3,
@@ -49,17 +51,27 @@
    "in_list_view": 1,
    "label": "On Shortfall",
    "read_only": 1
+  },
+  {
+   "description": "Set this instead of Salary Component to rank a loan repayment.",
+   "fieldname": "loan_product",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Loan Product",
+   "options": "Loan Product",
+   "read_only_depends_on": "eval:doc.salary_component"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-03 00:00:00.000000",
+ "modified": "2026-08-19 13:50:17.407912",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Deduction Priority Detail",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "ASC",
  "states": []

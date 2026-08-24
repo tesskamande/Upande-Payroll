@@ -10,16 +10,16 @@ from frappe import _
 # changes. Creating on demand gives every site the same starting set without ever
 # clobbering what the company has configured since.
 STATUTORY_COMPONENTS = [
-	{"salary_component": "Employee NSSF Tier 1", "salary_component_abbr": "NSSF1E"},
-	{"salary_component": "Employee NSSF Tier 2", "salary_component_abbr": "NSSF2E"},
+	{"salary_component": "Employee NSSF Tier 1", "salary_component_abbr": "NSSFTIER1"},
+	{"salary_component": "Employee NSSF Tier 2", "salary_component_abbr": "NSSFTIER2"},
 	{"salary_component": "Social Health Insurance Fund", "salary_component_abbr": "SHIF",
 	 "description": "Employee contribution only - the employer does not match SHIF."},
 	{"salary_component": "Housing Levy", "salary_component_abbr": "AHLE"},
-	{"salary_component": "Pay As You Earn", "salary_component_abbr": "IT",
+	{"salary_component": "Pay As You Earn", "salary_component_abbr": "PAYE",
 	 "is_income_tax_component": 1},
-	{"salary_component": "Employer NSSF Tier 1", "salary_component_abbr": "NSSF1R",
+	{"salary_component": "Employer NSSF Tier 1", "salary_component_abbr": "NSSFTIER1E",
 	 "custom_is_employer_contribution": 1},
-	{"salary_component": "Employer NSSF Tier 2", "salary_component_abbr": "NSSF2R",
+	{"salary_component": "Employer NSSF Tier 2", "salary_component_abbr": "NSSFTIER2E",
 	 "custom_is_employer_contribution": 1},
 	{"salary_component": "Employer Housing Levy", "salary_component_abbr": "AHLR",
 	 "custom_is_employer_contribution": 1},
@@ -105,10 +105,6 @@ STATUTORY_FIELDS = {
 		 "label": "Union Member", "insert_after": "union_membership_section",
 		 "description": "Tick if this employee belongs to the union. Non-members "
 						"usually pay an agency fee instead of dues."},
-		{"fieldname": "union", "fieldtype": "Data", "label": "Union",
-		 "insert_after": "union_member", "depends_on": "eval:doc.union_member",
-		 "description": "Which union, e.g. COTU or KPAWU. Useful when a company "
-						"deals with more than one."},
 		# Added at the end of the run, in its own heading, rather than slotted
 		# in beside the monthly opt-outs. Dropping it into the middle renumbered
 		# every field below it and rewired the one it displaced - churn on
@@ -116,7 +112,7 @@ STATUTORY_FIELDS = {
 		# exactly where they were, and a terminal benefit reads better apart
 		# from the monthly deductions anyway.
 		{"fieldname": "terminal_benefits_section", "fieldtype": "Section Break",
-		 "label": "Terminal Benefits", "insert_after": "union", "collapsible": 1},
+		 "label": "Terminal Benefits", "insert_after": "union_member", "collapsible": 1},
 		{"fieldname": "paid_under_public_pension_scheme", "fieldtype": "Check",
 		 "label": "Paid Under a Public Pension Scheme",
 		 "insert_after": "terminal_benefits_section",
@@ -127,20 +123,11 @@ STATUTORY_FIELDS = {
 						"contractual or CBA gratuity."},
 	],
 	# Payroll Entry already filters by branch, department, designation and
-	# grade. Employment Type is the one companies also split a run along -
-	# contract staff paid separately from permanent - and it is not there.
+	# grade. The advanced box below covers anything else a company splits a run
+	# along, on any field the Employee record carries.
 	"Payroll Entry": [
-		{"fieldname": "employment_type", "fieldtype": "Link",
-		 "label": "Employment Type", "options": "Employment Type",
-		 "insert_after": "grade",
-		 "description": "Narrow this run to one employment type, e.g. only "
-						"permanent staff or only contract. Leave it empty to "
-						"include every type."},
-		# The same advanced filter box the Bulk Salary Structure Assignment
-		# tool has. The fields above cover the usual splits; this covers the
-		# ones they do not, on any field the Employee record carries.
 		{"fieldname": "advanced_filters_section", "fieldtype": "Section Break",
-		 "label": "Advanced Filters", "insert_after": "employment_type",
+		 "label": "Advanced Filters", "insert_after": "grade",
 		 "collapsible": 1},
 		{"fieldname": "filter_list", "fieldtype": "HTML",
 		 "insert_after": "advanced_filters_section"},
@@ -289,85 +276,8 @@ def after_migrate():
 	ensure_statutory_components()
 	open_salary_structure_tables()
 	ensure_statutory_fields()
-	grant_payroll_manager_access()
-	seed_single_defaults()
+	link_employee_bank_to_bank_doctype()
 	add_to_payroll_workspace()
-
-
-# Fields on a Single doctype whose default has to be planted explicitly.
-SINGLE_DEFAULTS = {
-	"Kenya Payroll Settings": ["gratuity_public_scheme_annual_exemption"],
-}
-
-
-def seed_single_defaults():
-	"""Give a Single's new fields their default value.
-
-	A default only lands when a document is saved, and an existing site never
-	re-saves its settings on migrate - so a newly shipped rate would read as
-	nil, and nil here means an allowance that silently exempts nothing. Seeded
-	once from the field's own default, then left alone: a site that has since
-	set its own figure, zero included, keeps it.
-	"""
-	from frappe.utils import flt
-
-	for doctype, fieldnames in SINGLE_DEFAULTS.items():
-		meta = frappe.get_meta(doctype)
-		for fieldname in fieldnames:
-			# The raw Singles row, not get_single_value: that casts a missing
-			# Currency to 0.0 rather than None, so "never set" and "deliberately
-			# zero" come back identical and nothing would ever seed.
-			stored = frappe.db.sql(
-				"select value from tabSingles where doctype=%s and field=%s",
-				(doctype, fieldname),
-			)
-			if stored:
-				continue
-			field = meta.get_field(fieldname)
-			if field and field.default is not None:
-				frappe.db.set_single_value(doctype, fieldname, flt(field.default))
-
-	frappe.db.commit()
-
-
-# Salary Slip belongs to HRMS, so the Payroll Manager permission is applied as a
-# Custom DocPerm here rather than by editing HRMS's own doctype.
-PAYROLL_MANAGER_DOCTYPES = ["Salary Slip"]
-
-
-def grant_payroll_manager_access():
-	"""Let Payroll Manager open the statutory reports.
-
-	Listing a role on a Report is only half of it - frappe.desk.query_report.run
-	also checks has_permission(ref_doctype, "report") and refuses otherwise, so
-	without this the reports appear in the list and then throw when opened.
-
-	Read, report and export only - sight of payroll, not the ability to change
-	it. Export is included on purpose: these are returns that get filed with
-	KRA, and a role that can open the P10 but not download it cannot do the job.
-	That does make Payroll Manager able to export Salary Slip data where HR
-	Manager currently cannot; if that is not wanted, drop "export" here.
-	"""
-	from frappe.permissions import add_permission, update_permission_property
-
-	role = "Payroll Manager"
-	if not frappe.db.exists("Role", role):
-		return
-
-	for doctype in PAYROLL_MANAGER_DOCTYPES:
-		if not frappe.db.exists("DocType", doctype):
-			continue
-		if frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role, "permlevel": 0}):
-			continue
-		add_permission(doctype, role, 0)
-		# Set every right explicitly rather than trusting add_permission's
-		# defaults, so what this role can do is readable here.
-		for right, value in (("read", 1), ("report", 1), ("export", 1),
-							 ("write", 0), ("create", 0), ("delete", 0),
-							 ("submit", 0), ("cancel", 0), ("amend", 0)):
-			update_permission_property(doctype, role, 0, right, value)
-
-	frappe.db.commit()
 
 
 def ensure_statutory_fields():
@@ -383,7 +293,19 @@ def ensure_statutory_fields():
 # Fields this app used to add and no longer wants. Removed on every site, not
 # just the one they were noticed on - a field left behind keeps rendering.
 RETIRED_FIELDS = {
-	"Employee": ["payroll_earnings_section", "payroll_deductions_section",
+	# The wage base and the limit were only ever written, never read back - the
+	# figures they showed are already implied by the deductions on the slip and
+	# the wage base method on Deduction Priority.
+	"Salary Slip": ["custom_wage_base_for_deduction_cap",
+					"custom_maximum_permitted_deduction"],
+	# Payroll Entry's own Employment Type filter. The advanced filter box does
+	# the same job on any Employee field, so a dedicated one earned its space
+	# only if companies split runs that way, and they do not.
+	"Payroll Entry": ["employment_type"],
+	"Employee": [# Which union somebody belongs to was never read by anything -
+				 # the tick box is what a dues formula needs.
+				 "union",
+				 "payroll_earnings_section", "payroll_deductions_section",
 				 # Dropped: a salary slip already records what someone was on,
 				 # period by period, where one field could only hold the last
 				 # change.
@@ -460,6 +382,32 @@ def _drop_from_field_order(doctype, fieldnames):
 # New fields get their position from insert_after when they are created. If a
 # site pins its own field order, a newly added field lands at the bottom of the
 # form and has to be dragged into place once, by hand.
+
+
+def link_employee_bank_to_bank_doctype():
+	"""Make the Employee's Bank Name a link to the Bank record, not free text.
+
+	As a Data field every payroll officer types the bank their own way -
+	"KCB", "K.C.B", "Kenya Commercial Bank" - and a bank payment file has to
+	group by an exact name. A link means one spelling, chosen from a list.
+
+	Only the field type and its target change. bank_ac_no stays free text,
+	because an account number is genuinely per employee.
+	"""
+	for prop, value, prop_type in (
+		("fieldtype", "Link", "Select"),
+		("options", "Bank", "Text"),
+	):
+		frappe.make_property_setter({
+			"doctype": "Employee",
+			"fieldname": "bank_name",
+			"property": prop,
+			"value": value,
+			"property_type": prop_type,
+		}, is_system_generated=False)
+
+	frappe.clear_cache(doctype="Employee")
+	frappe.db.commit()
 
 
 def open_salary_structure_tables():

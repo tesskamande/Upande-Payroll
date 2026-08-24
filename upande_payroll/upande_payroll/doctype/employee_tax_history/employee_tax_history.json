@@ -6,7 +6,14 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["employee", "employee_name", "column_break_main", "company", "years_section", "prior_years"],
+ "field_order": [
+  "employee",
+  "employee_name",
+  "column_break_main",
+  "company",
+  "years_section",
+  "prior_years"
+ ],
  "fields": [
   {
    "fieldname": "employee",
@@ -26,7 +33,10 @@
    "label": "Employee Name",
    "read_only": 1
   },
-  {"fieldname": "column_break_main", "fieldtype": "Column Break"},
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
   {
    "fetch_from": "employee.company",
    "fieldname": "company",
@@ -57,9 +67,19 @@
  "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "HR Manager", "share": 1, "write": 1},
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "Payroll Manager", "share": 1, "write": 1},
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
  ],
  "sort_field": "modified",
  "sort_order": "DESC",

@@ -1,8 +1,7 @@
 {
  "actions": [],
- "allow_rename": 0,
  "autoname": "format:{company}-{group_name}",
- "creation": "2026-08-03 00:00:00.000000",
+ "creation": "2026-08-03 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -12,7 +11,8 @@
   "priority",
   "reducible",
   "on_shortfall",
-  "tie_breaker"
+  "tie_breaker",
+  "catch_up_order"
  ],
  "fields": [
   {
@@ -37,7 +37,7 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "1 is the one you protect most. The highest number is the first to be cut.",
+   "description": "Higher number gives way first.",
    "fieldname": "priority",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -46,7 +46,7 @@
   },
   {
    "default": "1",
-   "description": "Untick for things that must always come out in full, whatever else has to give.",
+   "description": "Untick and this group is always taken in full.",
    "fieldname": "reducible",
    "fieldtype": "Check",
    "in_list_view": 1,
@@ -55,7 +55,7 @@
   {
    "default": "Carry Forward",
    "depends_on": "eval:doc.reducible",
-   "description": "If you can't take the whole amount. Carry Forward: chase it next month. Waive: let it go.",
+   "description": "Carry Forward chases it next month. Waive lets it go.",
    "fieldname": "on_shortfall",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -66,20 +66,29 @@
   {
    "default": "Pro-rata",
    "depends_on": "eval:doc.reducible",
-   "description": "What to do when several in this group have to be cut. Pro-rata takes the same percentage off each, Largest First takes it all off the biggest, As Listed works up from the bottom of the list.",
+   "description": "Who bears the cut when several here rank equally.",
    "fieldname": "tie_breaker",
    "fieldtype": "Select",
    "label": "Share The Cut By",
    "mandatory_depends_on": "eval:doc.reducible",
-   "options": "Pro-rata\nLargest First\nAs Listed"
+   "options": "Pro-rata\nLargest First\nAs Listed\nOldest Loan First"
+  },
+  {
+   "default": "In Priority Order",
+   "description": "When a later month has money left over, is this group's unpaid balance cleared before or after the other groups.",
+   "fieldname": "catch_up_order",
+   "fieldtype": "Select",
+   "label": "Catch Up",
+   "options": "In Priority Order\nFirst\nLast"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-03 00:00:00.000000",
+ "modified": "2026-08-21 15:28:47.523452",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Deduction Group",
+ "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {
@@ -87,18 +96,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
+   "idx": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -107,6 +105,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_title_field_in_link": 1,
  "sort_field": "priority",
  "sort_order": "ASC",

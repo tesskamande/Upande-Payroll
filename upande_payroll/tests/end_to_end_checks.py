@@ -18,6 +18,55 @@ from frappe.utils import flt
 
 COMPANY = "Karen Roses"
 RESULTS = []
+def test_statutory_base_ignores_total_markers():
+	"""A row the payslip leaves out of gross is not earnings.
+
+	Structures often carry a Gross Pay marker built by adding the real
+	components together. Counting it charged statutory on the employee's pay
+	twice, and every figure downstream still reconciled, so nothing looked
+	wrong.
+	"""
+	s = "Statutory base"
+	from upande_payroll.kenya_statutory_gross_pay import _sum_ordinary_cash_earnings
+
+	def row(component, amount, **flags):
+		return frappe._dict({"salary_component": component, "amount": amount, **flags})
+
+	slip = frappe._dict({"earnings": [
+		row("Basic Pay", 30000),
+		row("Wages Refund", 2000),
+		row("Gross Pay(TI)", 32000, do_not_include_in_total=1),
+	]})
+	check(s, "a total marker is not counted as earnings",
+		  _sum_ordinary_cash_earnings(slip, {}), 32000)
+
+	slip.earnings[2] = row("Gross Pay(TI)", 32000, statistical_component=1)
+	check(s, "nor is a statistical row", _sum_ordinary_cash_earnings(slip, {}), 32000)
+
+	# Mapped rows were described on purpose, so they keep their treatment even
+	# when the company leaves them out of gross.
+	slip.earnings[2] = row("Airtime Allowance", 6000, do_not_include_in_total=1)
+	mapping = {"Airtime Allowance": frappe._dict({"category": "Partially Exempt Benefit"})}
+	check(s, "a mapped benefit still follows its category",
+		  _sum_ordinary_cash_earnings(slip, mapping), 32000)
+
+	mapping = {"Airtime Allowance": frappe._dict({"category": "Ordinary Cash Earning"})}
+	check(s, "a mapped cash row still counts",
+		  _sum_ordinary_cash_earnings(slip, mapping), 38000)
+
+	# A refund of pay wrongly deducted is cash, but it is not income - the
+	# employee was taxed on it the first time round.
+	refund = frappe._dict({"earnings": [
+		row("Basic Pay", 30000),
+		row("Wages Refund", 2000),
+	]})
+	mapping = {"Wages Refund": frappe._dict({"category": "Non-Taxable Payment"})}
+	check(s, "a non-taxable payment is left out of the base",
+		  _sum_ordinary_cash_earnings(refund, mapping), 30000)
+	check(s, "and counts as ordinary cash when unmapped",
+		  _sum_ordinary_cash_earnings(refund, {}), 32000)
+
+
 FAILED_SECTIONS = []
 
 
@@ -223,7 +272,7 @@ def test_paye_bands():
 		assign(emp, "E2E Statutory", base)
 		slip = payslip(emp, "E2E Statutory", "2026-08-01", "2026-08-31")
 
-		chargeable = flt(slip.custom_wage_base_for_deduction_cap or base)
+		chargeable = flt(base)
 		nssf = amount(slip, "Employee NSSF Tier 1") + amount(slip, "Employee NSSF Tier 2")
 		taxable = base - amount(slip, "Social Health Insurance Fund") \
 			- amount(slip, "Housing Levy") - nssf
@@ -281,6 +330,25 @@ def test_personal_relief_carry_forward():
 		  flt(second.custom_personal_relief_brought_forward), carried)
 	check(s, "available is brought forward plus this month",
 		  flt(second.custom_personal_relief_available_this_month), carried + 2400)
+
+	# Relief still to come counts the months AFTER this one. September's own
+	# 2,400 is already inside available_this_month, so counting it here too
+	# reported the same money twice and "used plus remaining" could never come
+	# to the year's figure.
+	check(s, "still to accrue excludes the month being viewed",
+		  flt(second.custom_annual_personal_relief), 2400 * 3)
+
+	december = payslip(emp, "E2E Statutory", "2026-12-01", "2026-12-31")
+	check(s, "nothing left to accrue in December",
+		  flt(december.custom_annual_personal_relief), 0)
+
+	# Joining part way through the year does not change what is still to come:
+	# relief runs to December either way.
+	joiner = employee("E2E Relief joiner", joining="2026-08-01")
+	assign(joiner, "E2E Statutory", 20000, from_date="2026-08-01")
+	joined = payslip(joiner, "E2E Statutory", "2026-09-01", "2026-09-30")
+	check(s, "a mid-year joiner has the same months left",
+		  flt(joined.custom_annual_personal_relief), 2400 * 3)
 
 	company(personal_relief_method="Flat Monthly")
 
@@ -445,8 +513,6 @@ def test_one_third_rule():
 	assign(emp, struct, 30000)
 
 	first = payslip(emp, struct, "2026-08-01", "2026-08-31", submit=True)
-	check(s, "wage base", flt(first.custom_wage_base_for_deduction_cap), 30000)
-	check(s, "limit is two thirds", flt(first.custom_maximum_permitted_deduction), 20000)
 	check(s, "deduction trimmed to the limit", amount(first, advance), 20000)
 	check(s, "net pay is a third", flt(first.net_pay), 10000)
 
@@ -455,12 +521,14 @@ def test_one_third_rule():
 	check(s, "shortfall raised as a debt", len(debts), 1)
 	check(s, "debt balance", flt(debts[0].balance_remaining), 5000)
 
+	# This period is met before anything is put towards an old debt, and this
+	# period's own 25,000 already exceeds the limit - so the debt waits.
 	second = payslip(emp, struct, "2026-09-01", "2026-09-30", submit=True)
-	check(s, "arrear brought forward",
-		  len(second.custom_brought_forward_deductions or []), 1)
+	check(s, "no room to recover the arrear",
+		  len(second.custom_brought_forward_deductions or []), 0)
 	debts = frappe.get_all("Deferred Deduction", filters={"employee": emp},
 						   fields=["balance_remaining", "status"], order_by="creation")
-	check(s, "old debt cleared", debts[0].status, "Cleared")
+	check(s, "old debt still owed", debts[0].status, "Pending")
 
 	second.reload()
 	second.cancel()
@@ -566,7 +634,8 @@ SECTIONS = [
 	test_insurance_relief, test_retirement_relief_cap,
 	test_kill_switch, test_company_opt_in, test_structure_gating,
 	test_secondary_employment, test_opt_outs,
-	test_one_third_rule, test_leave_encashment_divisor, test_overtime_hours,
+	test_one_third_rule, test_statutory_base_ignores_total_markers,
+	test_leave_encashment_divisor, test_overtime_hours,
 	test_terminal_dues_config, test_journal_account_method,
 	test_component_mapping,
 ]

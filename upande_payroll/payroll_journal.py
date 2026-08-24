@@ -224,9 +224,9 @@ def _add_employee_deductions(pe, credits, skip=None):
 def _add_loan_repayments(pe, credits):
 	if not frappe.db.has_column("Salary Slip Loan", "loan_account"):
 		return
-	amount_field = ("custom_applied_amount"
-					if frappe.db.has_column("Salary Slip Loan", "custom_applied_amount")
-					else "total_payment")
+	# total_payment is what the slip actually collected once the two thirds cap
+	# has had its say, so it is what the loan account is credited with.
+	amount_field = "total_payment"
 	rows = frappe.db.sql(
 		f"""
 		SELECT sl.loan_account, SUM(sl.{amount_field}) AS total

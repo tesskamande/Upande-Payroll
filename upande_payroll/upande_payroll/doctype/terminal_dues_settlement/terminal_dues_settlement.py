@@ -31,6 +31,7 @@ class TerminalDuesSettlement(Document):
 		self._sync_days_worked_pay()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
+		self._sync_salary_advance_recovery()
 		# Statutory before PAYE: SHIF, the Housing Levy and NSSF all come off
 		# taxable pay, so the tax cannot be worked out until they are known.
 		self._sync_statutory()
@@ -99,6 +100,7 @@ class TerminalDuesSettlement(Document):
 		self._sync_days_worked_pay()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
+		self._sync_salary_advance_recovery()
 		# Statutory before PAYE: SHIF, the Housing Levy and NSSF all come off
 		# taxable pay, so the tax cannot be worked out until they are known.
 		self._sync_statutory()
@@ -404,6 +406,58 @@ class TerminalDuesSettlement(Document):
 			"source_document": "",
 		})
 
+	def _sync_salary_advance_recovery(self):
+		"""Recover whatever the employee still owes on a salary advance.
+
+		The last payslip already takes everything it can, but the two thirds rule
+		caps it, and an employee can leave owing more than one month's pay could
+		cover. This is the only document left that can collect the rest, so it
+		claims the full outstanding balance of every advance still running.
+
+		One row per advance rather than one combined line - unlike asset recovery,
+		each of these has a single source document worth pointing at, and somebody
+		querying why a leaver was deducted should land on the advance itself.
+
+		The component comes from the advance's own type, which already names the
+		one its instalments are deducted as. Nothing new to configure, and the
+		settlement deducts it under the same name the payslips did.
+		"""
+		self.deductions = [
+			row for row in (self.deductions or [])
+			if row.source_doctype != "Employee Salary Advance"
+		]
+
+		advances = frappe.get_all(
+			"Employee Salary Advance",
+			filters={
+				"employee": self.employee,
+				"company": self.company,
+				"docstatus": 1,
+				"status": ("in", ("Unpaid", "Partially Repaid")),
+			},
+			fields=["name", "salary_component", "outstanding_amount"],
+			order_by="posting_date asc, creation asc",
+		)
+
+		for advance in advances:
+			outstanding = flt(advance.outstanding_amount, 2)
+			if outstanding <= 0.01:
+				continue
+
+			if not advance.salary_component:
+				frappe.throw(_(
+					"Advance {0} has no salary component, so {1} cannot be deducted "
+					"from the settlement. Set one on its advance type."
+				).format(advance.name, frappe.bold(outstanding)))
+
+			self.append("deductions", {
+				"deduction_type": advance.salary_component,
+				"description": f"Salary advance recovery - {advance.name}",
+				"amount": outstanding,
+				"source_doctype": "Employee Salary Advance",
+				"source_document": advance.name,
+			})
+
 	def _statutory_base(self):
 		"""Taxable terminal earnings, gratuity aside.
 
@@ -581,9 +635,32 @@ class TerminalDuesSettlement(Document):
 		frappe.db.set_value("Terminal Dues Settlement", self.name, "payment_status", "Submitted")
 		self._mark_gratuity_paid()
 		self._mark_leave_encashment_paid()
+		self._recover_salary_advances()
 		je = self._create_journal_entry()
 		if je:
 			frappe.db.set_value("Terminal Dues Settlement", self.name, "journal_entry", je)
+
+	def _recover_salary_advances(self):
+		"""Credit the settlement's advance deductions against the advances.
+
+		Without this the money is taken and the advance still says it is owed, so
+		the employee is deducted and the ledger disagrees. No date bound is passed:
+		a settlement clears the whole balance, including periods the calendar has
+		not reached.
+		"""
+		for row in (self.deductions or []):
+			if row.source_doctype != "Employee Salary Advance" or not row.source_document:
+				continue
+			if not frappe.db.exists("Employee Salary Advance", row.source_document):
+				continue
+
+			frappe.get_doc(
+				"Employee Salary Advance", row.source_document
+			).apply_recovery(
+				self.doctype, self.name,
+				self.relieving_date or frappe.utils.nowdate(),
+				flt(row.amount),
+			)
 
 	def _mark_gratuity_paid(self):
 		for row in (self.earnings or []):
@@ -736,7 +813,20 @@ class TerminalDuesSettlement(Document):
 		frappe.db.set_value("Terminal Dues Settlement", self.name, "payment_status", "Pending")
 		self._revert_gratuity()
 		self._revert_leave_encashment()
+		self._revert_salary_advances()
 		self._cancel_journal_entry()
+
+	def _revert_salary_advances(self):
+		"""Put back what this settlement collected against the advances."""
+		for row in (self.deductions or []):
+			if row.source_doctype != "Employee Salary Advance" or not row.source_document:
+				continue
+			if not frappe.db.exists("Employee Salary Advance", row.source_document):
+				continue
+
+			frappe.get_doc(
+				"Employee Salary Advance", row.source_document
+			).reverse_recovery(self.doctype, self.name)
 
 	def _revert_gratuity(self):
 		for row in (self.earnings or []):

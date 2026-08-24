@@ -26,8 +26,9 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Category",
-   "options": "Non-Cash Benefit\nAbsence / Unpaid Deduction\nPension Contribution\nMortgage Interest Relief\nPost-Retirement Medical Fund\nPartially Exempt Benefit\nInsurance Premium",
-   "reqd": 1
+   "options": "Non-Cash Benefit\nAbsence / Unpaid Deduction\nPension Contribution\nMortgage Interest Relief\nPost-Retirement Medical Fund\nPartially Exempt Benefit\nInsurance Premium\nNon-Taxable Payment",
+   "reqd": 1,
+   "description": "How this component is treated for statutory purposes. Non-Taxable Payment is cash that is not income - a refund of money wrongly deducted, or a reimbursement - so it is left out of the base entirely."
   },
   {
    "depends_on": "eval:doc.category == \"Non-Cash Benefit\"",

@@ -301,6 +301,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "idx": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -308,15 +309,6 @@
    "share": 1,
    "submit": 1,
    "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Employee",
-   "share": 1
   }
  ],
  "row_format": "Dynamic",

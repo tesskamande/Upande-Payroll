@@ -1,0 +1,313 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "company",
+  "department",
+  "col_main_1",
+  "advance_type",
+  "posting_date",
+  "status",
+  "details_section",
+  "advance_amount",
+  "repayment_periods",
+  "repayment_start_date",
+  "repay_from_salary",
+  "col_details_1",
+  "interest_method",
+  "interest_rate",
+  "salary_component",
+  "totals_section",
+  "total_interest",
+  "total_repayable",
+  "monthly_instalment",
+  "col_totals_1",
+  "total_paid",
+  "outstanding_amount",
+  "schedule_section",
+  "repayment_schedule",
+  "recovery_section",
+  "recoveries",
+  "disbursement_section",
+  "disbursement_date",
+  "col_disb_1",
+  "disbursement_reference",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "EMP-SAL-ADV-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "EMP-SAL-ADV-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_main_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "advance_type",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Advance Type",
+   "options": "Employee Salary Advance Type",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "no_copy": 1,
+   "options": "Draft\nUnpaid\nPartially Repaid\nRepaid\nClosed\nCancelled",
+   "read_only": 1
+  },
+  {
+   "fieldname": "details_section",
+   "fieldtype": "Section Break",
+   "label": "Advance Details"
+  },
+  {
+   "fieldname": "advance_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Advance Amount",
+   "reqd": 1
+  },
+  {
+   "fieldname": "repayment_periods",
+   "fieldtype": "Int",
+   "label": "Repayment Periods (Months)",
+   "reqd": 1
+  },
+  {
+   "description": "Payroll month the first instalment is deducted.",
+   "fieldname": "repayment_start_date",
+   "fieldtype": "Date",
+   "label": "Repayment Start Date",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "1",
+   "description": "Payroll only claims an instalment while this is ticked. Untick to suspend recovery - unpaid leave, or an advance being repaid outside payroll - without cancelling the advance.",
+   "fieldname": "repay_from_salary",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Repay From Salary"
+  },
+  {
+   "fieldname": "col_details_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "advance_type.interest_method",
+   "fieldname": "interest_method",
+   "fieldtype": "Select",
+   "label": "Interest Method",
+   "options": "\nInterest Free\nPer Annum Simple",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "advance_type.interest_rate",
+   "fieldname": "interest_rate",
+   "fieldtype": "Percent",
+   "label": "Interest Rate (% p.a.)",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "advance_type.salary_component",
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "read_only": 1
+  },
+  {
+   "fieldname": "totals_section",
+   "fieldtype": "Section Break",
+   "label": "Totals"
+  },
+  {
+   "fieldname": "total_interest",
+   "fieldtype": "Currency",
+   "label": "Total Interest",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_repayable",
+   "fieldtype": "Currency",
+   "label": "Total Repayable",
+   "read_only": 1
+  },
+  {
+   "fieldname": "monthly_instalment",
+   "fieldtype": "Currency",
+   "label": "Monthly Instalment",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_totals_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_paid",
+   "fieldtype": "Currency",
+   "label": "Total Paid",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "schedule_section",
+   "fieldtype": "Section Break",
+   "label": "Repayment Schedule"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "repayment_schedule",
+   "fieldtype": "Table",
+   "label": "Repayment Schedule",
+   "no_copy": 1,
+   "options": "Employee Salary Advance Schedule"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "recovery_section",
+   "fieldtype": "Section Break",
+   "label": "Recovery History"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Every amount a salary slip has collected against this advance. Paid figures on the schedule are the sum of these, so cancelling a slip removes its entries and the schedule follows.",
+   "fieldname": "recoveries",
+   "fieldtype": "Table",
+   "label": "Recoveries",
+   "no_copy": 1,
+   "options": "Employee Salary Advance Recovery",
+   "read_only": 1
+  },
+  {
+   "description": "The advance is paid outside payroll. Recorded here for reference only.",
+   "fieldname": "disbursement_section",
+   "fieldtype": "Section Break",
+   "label": "Disbursement"
+  },
+  {
+   "fieldname": "disbursement_date",
+   "fieldtype": "Date",
+   "label": "Disbursement Date"
+  },
+  {
+   "fieldname": "col_disb_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "disbursement_reference",
+   "fieldtype": "Data",
+   "label": "Payment Reference"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Employee Salary Advance",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Employee Salary Advance",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "employee,employee_name,advance_type,status",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}

@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 from frappe.utils import flt
 
 
@@ -23,9 +24,22 @@ class LeaveEncashmentMixin:
 		if not settings.enable_leave_encashment_calculation:
 			return super().set_encashment_amount()
 
-		divisor = settings.leave_encashment_divisor or 26
+		divisor = flt(settings.leave_encashment_divisor)
+		if divisor <= 0:
+			frappe.throw(
+				_("Set Leave Encashment Divisor in Company Payroll Settings for {0}.")
+					.format(self.company)
+			)
+
 		basic_pay = flt(frappe.db.get_value("Employee", self.employee, "basic_pay"))
-		self.encashment_amount = flt((basic_pay / divisor) * flt(self.encashment_days), 2) if divisor else 0.0
+		if basic_pay <= 0:
+			# Encashing at zero would look like a successful payout of nothing.
+			frappe.throw(
+				_("{0} has no Basic Pay on their employee record, so leave cannot be "
+				  "valued.").format(frappe.bold(self.employee_name or self.employee))
+			)
+
+		self.encashment_amount = flt((basic_pay / divisor) * flt(self.encashment_days), 2)
 
 	def on_submit(self):
 		if self.get("custom_pay_via_terminal_dues"):

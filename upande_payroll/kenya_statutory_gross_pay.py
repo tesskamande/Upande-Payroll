@@ -1,6 +1,13 @@
 import frappe
 from frappe.utils import flt
 
+# Categories that are cash on the payslip but never part of the statutory base.
+# The two benefit categories are handled on the taxable-income side instead, where
+# only the part above any exemption is added. A Non-Taxable Payment is not income
+# at all - a refund of pay wrongly deducted, or a reimbursement - so it drops out
+# here and is not added back anywhere.
+EXCLUDED_FROM_CASH = ("Non-Cash Benefit", "Partially Exempt Benefit", "Non-Taxable Payment")
+
 
 def get_income_breakdown(salary_slip, settings, is_secondary=False):
 	"""Return the two figures Kenyan statutory deductions actually need -
@@ -69,11 +76,26 @@ def get_income_breakdown(salary_slip, settings, is_secondary=False):
 
 
 def _sum_ordinary_cash_earnings(salary_slip, mapping):
+	"""Cash the employee actually earned this period.
+
+	Anything the payslip itself refuses to count towards gross is not earnings:
+	a row carrying a running total, or one there for reference. Structures
+	commonly hold such a row - a Gross Pay marker built by adding the real
+	components up - and counting it here charged the employee statutory on their
+	pay twice over, quietly, because every figure downstream still reconciled.
+
+	Only the unmapped, ordinary-cash side is guarded. A row the company has
+	mapped to a benefit category has been described deliberately, so it keeps
+	whatever treatment that category gives it even when it is left out of gross.
+	"""
 	total = 0.0
 	for row in salary_slip.earnings or []:
+		if row.get("do_not_include_in_total") or row.get("statistical_component"):
+			if row.salary_component not in mapping:
+				continue
 		rule = mapping.get(row.salary_component)
 		category = rule.category if rule else "Ordinary Cash Earning"
-		if category not in ("Non-Cash Benefit", "Partially Exempt Benefit"):
+		if category not in EXCLUDED_FROM_CASH:
 			total += flt(row.amount)
 	return total
 

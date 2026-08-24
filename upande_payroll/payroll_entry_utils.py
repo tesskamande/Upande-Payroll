@@ -3,10 +3,10 @@ import frappe
 # Employee fields Payroll Entry can narrow a run by, on top of the branch,
 # department, designation and grade HRMS already offers.
 #
-# Employment Type is here because companies split payroll along it: Kaitet runs
-# contract and permanent staff separately, where the same person's grade and
-# designation say nothing about which run they belong to.
-EXTRA_FILTERS = ["employment_type"]
+# Empty on purpose: the Advanced Filters box covers any Employee field, so a
+# dedicated one has to earn the space on the form. Add a fieldname here and the
+# form field beside it in setup.py if one ever does.
+EXTRA_FILTERS = []
 
 
 class PayrollEntryMixin:

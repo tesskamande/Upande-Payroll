@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, rounded
 
 
 def merge_duplicate_components(doc, method=None):
@@ -57,3 +57,49 @@ def merge_duplicate_components(doc, method=None):
 			doc.set(parentfield, [])
 			for row in merged:
 				doc.append(parentfield, row.as_dict())
+
+
+class SalarySlipMixin:
+	"""Keeps net pay in step with what the two thirds rule actually allowed.
+
+	The rule runs on validate and records what it let through in
+	custom_total_actual_repayment. HRMS works net pay out from
+	total_loan_repayment - the whole scheduled instalment - inside its own
+	calculate_net_pay, which has already run by then, so the figure has to be
+	put back before anything reads it: year to date, month to date and submit.
+
+	This lives in payroll rather than in the lending overrides because the
+	field, the rule and the correction are all payroll's business. Lending
+	supplies the loan rows and nothing more.
+	"""
+
+	def compute_year_to_date(self):
+		apply_capped_loan_repayment(self)
+		super().compute_year_to_date()
+
+	def compute_month_to_date(self):
+		apply_capped_loan_repayment(self)
+		super().compute_month_to_date()
+
+	def before_submit(self):
+		apply_capped_loan_repayment(self)
+		parent = getattr(super(), "before_submit", None)
+		if parent:
+			parent()
+
+
+def apply_capped_loan_repayment(doc):
+	"""Restate net pay from the repayment the two thirds rule allowed.
+
+	Does nothing where the rule never ran or collected nothing, which is also
+	what makes it safe on a site with no loans at all.
+	"""
+	actual = flt(doc.get("custom_total_actual_repayment"))
+	if not actual:
+		return
+
+	doc.total_loan_repayment = actual
+	doc.net_pay = flt(doc.gross_pay) - flt(doc.total_deduction) - actual
+	doc.rounded_total = rounded(doc.net_pay)
+	doc.base_net_pay = flt(doc.net_pay) * flt(doc.exchange_rate or 1)
+	doc.base_rounded_total = rounded(doc.base_net_pay)

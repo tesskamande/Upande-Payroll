@@ -22,6 +22,26 @@ COMPANY = "Karen Roses"
 RESULTS = []
 
 
+
+def wage_base_of(slip):
+    """Recompute the base the cap was measured against.
+
+    The slip no longer carries it - the figure was written and never read, so
+    it was dropped. Asking the same function payroll asks keeps these checks
+    testing the calculation rather than a stored copy of it.
+    """
+    from upande_payroll.deduction_cap import _config, _wage_base
+
+    settings = frappe.get_cached_doc("Company Payroll Settings", slip.company)
+    return flt(_wage_base(slip, settings, _config(slip.company)), 2)
+
+
+def permitted_of(slip):
+    from upande_payroll.deduction_cap import PERMITTED_FRACTION
+
+    return flt(wage_base_of(slip) * PERMITTED_FRACTION, 2)
+
+
 def check(name, got, want, tol=0.01):
     ok = (abs(flt(got) - flt(want)) <= tol) if isinstance(want, (int, float)) else (got == want)
     RESULTS.append((ok, name, got, want))
@@ -193,8 +213,8 @@ def run():
     e1 = employee("SUITE Waterfall")
     assign(e1, S_MIX, 30000)
     s = slip(e1, S_MIX, "2026-08-01", "2026-08-31")
-    check("A1 base excludes nothing (cash 30k + OT 6k)", s.custom_wage_base_for_deduction_cap, 36000)
-    check("A2 cap = 2/3 base", s.custom_maximum_permitted_deduction, 24000)
+    check("A1 base excludes nothing (cash 30k + OT 6k)", wage_base_of(s), 36000)
+    check("A2 cap = 2/3 base", permitted_of(s), 24000)
     check("A3 total == cap", s.total_deduction, 24000)
     check("A4 net == 1/3", s.net_pay, 12000)
     check("A5 Welfare (tier 4) emptied first", amt(s, welfare), 0)
@@ -211,7 +231,7 @@ def run():
     assign(e2, S_BEN, 20000)
     priority("Cash Wages", MAP)
     s = slip(e2, S_BEN, "2026-08-01", "2026-08-31")
-    check("B1 Cash Wages excludes non-cash benefit", s.custom_wage_base_for_deduction_cap, 20000)
+    check("B1 Cash Wages excludes non-cash benefit", wage_base_of(s), 20000)
     check("B2 gross_pay excludes it too (do_not_include_in_total)", s.gross_pay, 20000)
     check("B3 breach flagged", s.custom_unreducible_excess > 0, True)
     check("B4 net goes negative, not clamped", s.net_pay < 0, True)
@@ -235,22 +255,22 @@ def run():
 
     priority("Cash Wages", MAP)
     s = slip(e9, S_ABS, "2026-08-01", "2026-08-31")
-    check("B5 Cash Wages nets off absence", s.custom_wage_base_for_deduction_cap, 25000)
-    check("B6 cap on cash wages", s.custom_maximum_permitted_deduction, 16666.67)
+    check("B5 Cash Wages nets off absence", wage_base_of(s), 25000)
+    check("B6 cap on cash wages", permitted_of(s), 16666.67)
     check("B7 advance trimmed", amt(s, adv), 11666.67)
 
     priority("Gross Pay", MAP)
     s = slip(e9, S_ABS, "2026-08-01", "2026-08-31")
-    check("B8 Gross Pay ignores absence", s.custom_wage_base_for_deduction_cap, 30000)
-    check("B9 higher cap on gross", s.custom_maximum_permitted_deduction, 20000)
+    check("B8 Gross Pay ignores absence", wage_base_of(s), 30000)
+    check("B9 higher cap on gross", permitted_of(s), 20000)
     check("B10 advance untouched on gross base", amt(s, adv), 15000)
 
     priority("Selected Earnings", MAP, base_components=["Basic Pay"])
     e3 = employee("SUITE Selected")
     assign(e3, S_MIX, 30000)
     s = slip(e3, S_MIX, "2026-08-01", "2026-08-31")
-    check("B11 Selected Earnings = Basic only", s.custom_wage_base_for_deduction_cap, 30000)
-    check("B12 lower cap protects more", s.custom_maximum_permitted_deduction, 20000)
+    check("B11 Selected Earnings = Basic only", wage_base_of(s), 30000)
+    check("B12 lower cap protects more", permitted_of(s), 20000)
 
     # ---- C. boundaries --------------------------------------------------
     priority("Cash Wages", MAP)
@@ -280,20 +300,22 @@ def run():
     check("D4 balance = deferred", d[0].balance_remaining, 5000)
     check("D5 status Pending", d[0].status, "Pending")
 
+    # This period is met before anything is put towards an old debt, and this
+    # period alone already exceeds the cap - so the debt is not recovered at all.
     s2 = slip(e6, S_OVER, "2026-09-01", "2026-09-30")
-    check("D6 b/f applied to slip", len(s2.custom_brought_forward_deductions), 1)
+    check("D6 no room to recover", len(s2.custom_brought_forward_deductions), 0)
     check("D7 still capped", s2.total_deduction, 20000)
     s2.submit()
     d = debts(e6)
-    check("D8 old debt cleared", d[0].status, "Cleared")
-    check("D9 old balance zero", d[0].balance_remaining, 0)
+    check("D8 old debt untouched", d[0].status, "Pending")
+    check("D9 old balance unchanged", d[0].balance_remaining, 5000)
     check("D10 new debt raised", len(d), 2)
-    check("D11 new debt = 25000-15000", d[1].balance_remaining, 10000)
+    check("D11 new debt = 25000-20000", d[1].balance_remaining, 5000)
 
     s2.reload()
     s2.cancel()
     d = debts(e6)
-    check("D12 cancel restores old balance", d[0].balance_remaining, 5000)
+    check("D12 old balance still intact", d[0].balance_remaining, 5000)
     check("D13 cancel reverts status", d[0].status, "Pending")
     check("D14 cancel voids new debt", d[1].docstatus, 2)
 
@@ -306,18 +328,20 @@ def run():
     p1.submit()
     check("E3 debt A raised", debts(e7)[0].balance_remaining, 24000)
 
+    # The non-reducible union dues take 19,000 of a 20,000 cap every period, so
+    # this period's own advance is already short and nothing reaches the debts.
     p2 = slip(e7, S_PART, "2026-09-01", "2026-09-30")
     p2.submit()
     d = debts(e7)
-    check("E4 debt A only partly recovered", d[0].balance_remaining, 23000)
-    check("E5 status Partially Recovered", d[0].status, "Partially Recovered")
-    check("E6 debt B raised for own instalment", d[1].balance_remaining, 25000)
+    check("E4 debt A not recovered", d[0].balance_remaining, 24000)
+    check("E5 status still Pending", d[0].status, "Pending")
+    check("E6 debt B raised for own instalment", d[1].balance_remaining, 24000)
 
     p3 = slip(e7, S_PART, "2026-10-01", "2026-10-31")
     p3.submit()
     d = debts(e7)
-    check("E7 oldest debt paid first", d[0].balance_remaining, 22000)
-    check("E8 newer debt untouched", d[1].balance_remaining, 25000)
+    check("E7 oldest debt still first in line", d[0].balance_remaining, 24000)
+    check("E8 newer debt untouched", d[1].balance_remaining, 24000)
     check("E9 third debt raised", len(d), 3)
 
     # ---- F. waive creates no debt ---------------------------------------
@@ -334,8 +358,8 @@ def run():
     e8 = employee("SUITE Weekly")
     assign(e8, S_WEEK, 8000)
     s = slip(e8, S_WEEK, "2026-08-03", "2026-08-09", freq="Weekly")
-    check("G1 weekly base = that week's wages", s.custom_wage_base_for_deduction_cap, 8000)
-    check("G2 weekly cap", s.custom_maximum_permitted_deduction, 5333.33)
+    check("G1 weekly base = that week's wages", wage_base_of(s), 8000)
+    check("G2 weekly cap", permitted_of(s), 5333.33)
     check("G3 weekly deduction capped", amt(s, adv), 5333.33)
 
     # ---- H. idempotency and off-switch ----------------------------------
@@ -351,7 +375,7 @@ def run():
     frappe.clear_cache()
     s = slip(e6, S_OVER, "2026-12-01", "2026-12-31")
     check("H2 rule off: full deduction", amt(s, adv), 25000)
-    check("H3 rule off: fields cleared", s.custom_maximum_permitted_deduction, 0)
+    check("H3 rule off: nothing flagged", s.custom_deduction_cap_applied, 0)
     check("H4 rule off: no deferral rows", len(s.custom_deferred_deductions), 0)
 
     # ---- I. no config ---------------------------------------------------
@@ -361,7 +385,7 @@ def run():
     frappe.delete_doc("Deduction Priority", COMPANY, force=True, ignore_permissions=True)
     frappe.clear_cache()
     s = slip(e6, S_OVER, "2027-01-01", "2027-01-31")
-    check("I1 no config: default base still computed", s.custom_wage_base_for_deduction_cap, 30000)
+    check("I1 no config: default base still computed", wage_base_of(s), 30000)
     check("I2 no config: nothing reduced", amt(s, adv), 25000)
     check("I3 no config: breach reported", s.custom_unreducible_excess, 5000)
 
@@ -390,7 +414,7 @@ def run():
     check("J4 leaving month is final", sep.custom_one_third_rule_skipped, 1)
     check("J5 instalment + arrear taken in full", amt(sep, adv), 30000)
     check("J6 nothing deferred on the way out", len(sep.custom_deferred_deductions), 0)
-    check("J7 limit still shown for reference", sep.custom_maximum_permitted_deduction, 20000)
+    check("J7 leaver slip is not flagged as capped", sep.custom_deduction_cap_applied, 0)
     sep.submit()
     check("J8 arrear cleared", debts(e10)[0].status, "Cleared")
     check("J9 no new debt", len(debts(e10)), 1)

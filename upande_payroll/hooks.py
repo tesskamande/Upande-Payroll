@@ -23,7 +23,7 @@ fixtures = [
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
 				"custom_opt_out_of_housing_levy",
 				"custom_salary_expense_account",
-				"union_membership_section", "union_member", "union",
+				"union_membership_section", "union_member",
 				"payroll_earnings_section", "payroll_deductions_section",
 			]],
 		],
@@ -49,12 +49,30 @@ fixtures = [
 				"custom_tax_charged",
 				"custom_personal_relief_available_this_month", "custom_personal_relief_carried_forward",
 				"column_break_relief", "custom_personal_relief_utilized", "custom_annual_personal_relief",
-				"custom_deduction_cap_section", "custom_wage_base_for_deduction_cap",
-				"custom_maximum_permitted_deduction", "column_break_deduction_cap",
+				"custom_deduction_cap_section", "column_break_deduction_cap",
 				"custom_deduction_cap_applied", "custom_unreducible_excess",
+				# Was missing here, so a fresh site never got the field: the code
+				# set it, nothing persisted it, and a leaver's slip read back as
+				# an ordinary capped one.
+				"custom_one_third_rule_skipped",
 				"custom_brought_forward_deductions", "custom_deferred_deductions",
+				# Written by the two thirds cap for loans as well as components.
+				"custom_total_actual_repayment", "custom_total_deferred_deductions",
+				"custom_has_pending_deductions",
 			]],
 		],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "payroll_entry",
+		"filters": [["dt", "=", "Payroll Entry"], ["fieldname", "in", [
+			"advanced_filters_section", "filter_list", "advanced_employee_filters",
+		]]],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "salary_component_account",
+		"filters": [["dt", "=", "Salary Component Account"], ["fieldname", "like", "custom_%"]],
 	},
 	{
 		"dt": "Property Setter",
@@ -254,16 +272,28 @@ doc_events = {
 		"before_update_after_submit": "upande_payroll.salary_structure_utils.validate_after_submit",
 	},
 	"Salary Slip": {
-		# Merge first, so the two thirds rule sees one row per component rather
+		# Advances claim first, so the instalment is one of the deductions the
+		# two thirds rule weighs rather than something added after it has
+		# finished deciding what fits.
+		# Merge next, so the two thirds rule sees one row per component rather
 		# than counting the same deduction twice over.
 		"validate": [
+			"upande_payroll.salary_advance.apply_salary_advances",
 			"upande_payroll.salary_slip_utils.merge_duplicate_components",
 			"upande_payroll.deduction_cap.apply_deduction_cap",
 		],
 		# The ledger only moves once the slip is real. validate runs on every
-		# save, including drafts that may never be submitted.
-		"on_submit": "upande_payroll.deduction_cap.settle_deferred_deductions",
-		"on_cancel": "upande_payroll.deduction_cap.unsettle_deferred_deductions",
+		# save, including drafts that may never be submitted. Advances are
+		# credited last: what they collected is only known once the cap has
+		# settled what the row was allowed to take.
+		"on_submit": [
+			"upande_payroll.deduction_cap.settle_deferred_deductions",
+			"upande_payroll.salary_advance.settle_salary_advances",
+		],
+		"on_cancel": [
+			"upande_payroll.deduction_cap.unsettle_deferred_deductions",
+			"upande_payroll.salary_advance.unsettle_salary_advances",
+		],
 	},
 }
 
@@ -298,6 +328,9 @@ doc_events = {
 #
 # Specify custom mixins to extend the standard doctype controller.
 extend_doctype_class = {
+	# Net pay has to be restated from what the two thirds rule allowed, and the
+	# points that need it are methods rather than hooks.
+	"Salary Slip": "upande_payroll.salary_slip_utils.SalarySlipMixin",
 	"Leave Encashment": "upande_payroll.leave_encashment_utils.LeaveEncashmentMixin",
 	"Overtime Slip": "upande_payroll.overtime_utils.OvertimeSlipMixin",
 	"Payroll Entry": "upande_payroll.payroll_entry_utils.PayrollEntryMixin",

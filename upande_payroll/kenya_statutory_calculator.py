@@ -134,7 +134,7 @@ def apply_regional_deductions(doc):
 	insurance_relief = compute_insurance_relief(breakdown.insurance_premium, kenya_settings)
 
 	doc.custom_tax_charged = flt(gross_paye, 2)
-	_write_taxable_income(doc, flt(taxable_income, 2), comp.paye in (allowed or set()))
+	_write_taxable_income(doc, flt(taxable_income, 2), allowed)
 	paye = max(gross_paye - relief_utilized - insurance_relief, 0.0)
 	_set_amount(doc, comp.paye, flt(paye, 2), allowed, by_formula)
 
@@ -347,21 +347,22 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 	relief_utilized = min(gross_paye, relief_available)
 	relief_carried_forward = relief_available - relief_utilized
 
-	if joined_this_year:
-		eligible_months = 12 - doj.month + 1
-		annual_cap = eligible_months * monthly_relief
-		months_elapsed = max(current_month - doj.month, 0)
-	else:
-		annual_cap = monthly_relief * 12
-		months_elapsed = current_month - 1
-
-	annual_cap_remaining = max(annual_cap - (monthly_relief * months_elapsed), 0.0)
+	# What is still to come: the months after this one, to the end of the year.
+	# This month's own relief is already inside relief_available, so counting it
+	# here as well reported the same amount twice on one payslip - and anyone
+	# adding "utilised" to "remaining" could never reach the annual figure.
+	#
+	# The joining month does not come into it. Whenever somebody joined, their
+	# relief still runs to December, so the count of months left to accrue is
+	# the same either way. Only the year's total differs, and the total is not
+	# what this field reports.
+	relief_yet_to_accrue = flt(monthly_relief * max(12 - current_month, 0), 2)
 
 	salary_slip.custom_personal_relief_brought_forward = relief_bf
 	salary_slip.custom_personal_relief_available_this_month = relief_available
 	salary_slip.custom_personal_relief_utilized = relief_utilized
 	salary_slip.custom_personal_relief_carried_forward = relief_carried_forward
-	salary_slip.custom_annual_personal_relief = annual_cap_remaining
+	salary_slip.custom_annual_personal_relief = relief_yet_to_accrue
 
 	return frappe._dict({"gross_paye": gross_paye, "relief_utilized": relief_utilized})
 
@@ -382,13 +383,14 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 TAXABLE_INCOME_COMPONENT = "Taxable Income"
 
 
-def _write_taxable_income(doc, amount, paye_applies):
+def _write_taxable_income(doc, amount, allowed):
 	"""Put the chargeable pay on the payslip as its own deduction row.
 
-	Written only where the structure actually charges PAYE. A task worker whose
-	structure omits it is not taxed at all, so a chargeable pay figure on their
-	payslip would state a base nothing was ever charged on - and would show as a
-	statutory row on a slip meant to carry none.
+	Written only where the Salary Structure asks for it, the same rule every
+	other statutory component follows. A company that never put Taxable Income
+	in its structure should not find it on the payslip, and a task worker whose
+	structure omits PAYE is not taxed at all, so a chargeable pay figure would
+	state a base nothing was ever charged on.
 
 	Rebuilt on every run rather than updated in place, so a slip saved twice
 	does not end up with two of them, and so a company that turns the
@@ -404,9 +406,10 @@ def _write_taxable_income(doc, amount, paye_applies):
 		row for row in (doc.deductions or [])
 		if row.salary_component != TAXABLE_INCOME_COMPONENT
 	]
-	if not paye_applies:
+	allowed = allowed or set()
+	if TAXABLE_INCOME_COMPONENT not in allowed:
 		return
-	if not paye_applies:
+	if get_statutory_components().paye not in allowed:
 		return
 	if not frappe.db.exists("Salary Component", TAXABLE_INCOME_COMPONENT):
 		return

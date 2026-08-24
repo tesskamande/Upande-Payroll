@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "creation": "2026-08-21 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "period_no",
+  "due_date",
+  "opening_balance",
+  "principal_amount",
+  "interest_amount",
+  "instalment_amount",
+  "paid_amount",
+  "outstanding_amount",
+  "status"
+ ],
+ "fields": [
+  {
+   "fieldname": "period_no",
+   "fieldtype": "Int",
+   "label": "#",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 1
+  },
+  {
+   "fieldname": "due_date",
+   "fieldtype": "Date",
+   "label": "Due Date",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "opening_balance",
+   "fieldtype": "Currency",
+   "label": "Opening Balance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "principal_amount",
+   "fieldtype": "Currency",
+   "label": "Principal",
+   "read_only": 1
+  },
+  {
+   "fieldname": "interest_amount",
+   "fieldtype": "Currency",
+   "label": "Interest",
+   "read_only": 1
+  },
+  {
+   "fieldname": "instalment_amount",
+   "fieldtype": "Currency",
+   "label": "Instalment",
+   "reqd": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding",
+   "read_only": 1,
+   "allow_on_submit": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Pending\nPartially Paid\nPaid\nDeferred\nWaived",
+   "default": "Pending",
+   "read_only": 1,
+   "in_list_view": 1,
+   "columns": 2,
+   "allow_on_submit": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-21 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Employee Salary Advance Schedule",
+ "owner": "Administrator",
+ "istable": 1,
+ "editable_grid": 1,
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

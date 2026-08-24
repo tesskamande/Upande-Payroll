@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-07-21 00:00:00.000000",
+ "creation": "2026-07-21 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -226,19 +226,16 @@
    "label": "Post-Retirement Medical Fund Cap"
   },
   {
-   "default": "360000",
-   "description": "How much of each year's gratuity is tax free when it is paid under a public pension scheme. KRA currently allows 360,000 a year. Only applies to employees ticked as being in such a scheme on their Employee record.",
+   "description": "How much of each year's gratuity is tax free when it is paid under a public pension scheme.",
    "fieldname": "gratuity_public_scheme_annual_exemption",
    "fieldtype": "Currency",
    "label": "Gratuity Exemption Under a Public Pension Scheme"
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 0,
  "issingle": 1,
- "istable": 0,
  "links": [],
- "modified": "2026-07-21 00:00:00.000000",
+ "modified": "2026-08-19 10:35:29.084854",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Kenya Payroll Settings",
@@ -248,16 +245,7 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
+   "idx": 1,
    "print": 1,
    "read": 1,
    "role": "HR Manager",
@@ -265,6 +253,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": []

@@ -1,8 +1,7 @@
 {
  "actions": [],
- "allow_rename": 0,
  "autoname": "field:company",
- "creation": "2026-07-17 00:00:00.000000",
+ "creation": "2026-07-17 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -84,7 +83,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "26",
    "depends_on": "eval:doc.enable_leave_encashment_calculation",
    "fieldname": "leave_encashment_divisor",
    "fieldtype": "Int",
@@ -132,12 +130,12 @@
    "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance"
   },
   {
-   "default": "13",
    "depends_on": "eval:doc.enable_leave_travelling_allowance",
    "description": "How long one leave application has to be before it counts.",
    "fieldname": "lta_minimum_days",
    "fieldtype": "Float",
    "label": "Minimum Leave Days",
+   "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance",
    "non_negative": 1,
    "precision": "1"
   },
@@ -164,7 +162,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "4",
    "depends_on": "eval:doc.enable_gratuity_calculation",
    "description": "How many recent years to tax the gratuity over one by one. Anything further back is put together in a single row.",
    "fieldname": "gratuity_paye_recent_years",
@@ -193,7 +190,6 @@
    "label": "Enable Overtime Calculation"
   },
   {
-   "default": "199.33",
    "depends_on": "eval:doc.enable_overtime_calculation",
    "description": "Hours used to work out someone's hourly rate for overtime. Departments below can use their own.",
    "fieldname": "default_monthly_working_hours",
@@ -240,7 +236,6 @@
    "options": "Salary Component"
   },
   {
-   "default": "26",
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
    "description": "How many days to divide monthly basic pay by to get a day's pay.",
    "fieldname": "terminal_dues_divisor",
@@ -369,7 +364,7 @@
    "label": "Leave Provision"
   },
   {
-   "description": "Leave that would have to be paid out if it is never taken. Usually just annual leave. Sick and maternity are not normally provided for.",
+   "description": "Leave that would have to be paid out if it is never taken. Usually just annual leave.",
    "fieldname": "leave_provision_leave_types",
    "fieldtype": "Table",
    "label": "Leave Types To Provide For",
@@ -401,7 +396,6 @@
    "options": "Salary Component"
   },
   {
-   "default": "26",
    "description": "Basic pay is divided by this to get a day's pay. Keep it the same as your leave encashment divisor, or you will provide for less than you would actually pay out.",
    "fieldname": "leave_provision_divisor",
    "fieldtype": "Int",
@@ -420,10 +414,8 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "is_submittable": 0,
- "istable": 0,
  "links": [],
- "modified": "2026-07-21 00:00:00.000000",
+ "modified": "2026-08-19 10:35:29.951865",
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Company Payroll Settings",
@@ -434,16 +426,7 @@
    "create": 1,
    "delete": 1,
    "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
+   "idx": 1,
    "print": 1,
    "read": 1,
    "role": "HR Manager",
@@ -451,6 +434,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],

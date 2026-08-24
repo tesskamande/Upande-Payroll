@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import add_days, add_to_date, flt, getdate
+from frappe.utils import cint, add_days, add_to_date, flt, getdate
 
 
 def calculate_gratuity(doc, method=None):
@@ -98,7 +98,12 @@ def calculate_gratuity(doc, method=None):
 
 	# Tax-exemption phasing per completed year of service
 	exemption_date = settings.gratuity_tax_exemption_date
-	recent_years = settings.gratuity_paye_recent_years or 4
+	recent_years = cint(settings.gratuity_paye_recent_years)
+	if recent_years <= 0:
+		frappe.throw(
+			_("Set Gratuity PAYE Recent Years in Company Payroll Settings for {0}.")
+				.format(doc.company)
+		)
 
 	has_exemption = False
 	taxable_total = 0.0
@@ -225,9 +230,19 @@ def _public_scheme_exemption(doc):
 	"""
 	if not frappe.db.get_value("Employee", doc.employee, "paid_under_public_pension_scheme"):
 		return 0.0
-	return flt(frappe.db.get_single_value(
+
+	exemption = flt(frappe.db.get_single_value(
 		"Kenya Payroll Settings", "gratuity_public_scheme_annual_exemption"
 	))
+	if exemption <= 0:
+		# Nil here would tax the whole gratuity without saying why, on the one
+		# employee the allowance was meant for.
+		frappe.throw(
+			_("{0} is in a public pension scheme, but no gratuity exemption is set "
+			  "in Kenya Payroll Settings.").format(frappe.bold(doc.employee_name or doc.employee))
+		)
+
+	return exemption
 
 
 MISMATCH_TOLERANCE = 0.01

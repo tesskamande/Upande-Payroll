@@ -10,9 +10,11 @@ class OvertimeSlipMixin:
 	"""Replaces core HRMS's Overtime Slip amount calculation with a config-driven
 	one: the hourly rate comes from Company Payroll Settings (Basic Pay divided
 	by Default/Department Monthly Working Hours) instead of the employee's
-	Salary Structure or a fixed rate on Overtime Type. The multiplier and
-	Salary Component come straight from whichever Overtime Type is picked per
-	row - no date-based weekend/public-holiday detection, since a rest day
+	Salary Structure or a fixed rate on Overtime Type. Overtime is worked out
+	before payroll runs, so there is no payslip for the period to read a
+	component off - the rate on the employee record is what is available.
+	The multiplier and Salary Component come straight from whichever Overtime
+	Type is picked per row - no date-based weekend/public-holiday detection, since a rest day
 	worked is paid the same as a normal overtime day (1.5x) unless it happens
 	to be an actual local holiday (2.0x), and that distinction is made by
 	whoever enters the row, not inferred from the Holiday List (which would
@@ -46,8 +48,19 @@ class OvertimeSlipMixin:
 			return {}
 
 		basic_pay = flt(frappe.db.get_value("Employee", self.employee, "basic_pay"))
+		if basic_pay <= 0:
+			# Paying nothing for hours actually worked is worse than saying so.
+			frappe.throw(
+				f"{self.employee_name or self.employee} has no Basic Pay on their employee "
+				f"record, so an overtime rate cannot be worked out."
+			)
+
 		monthly_hours = get_monthly_working_hours(self.company, self.department)
-		hourly_rate = flt(basic_pay / monthly_hours, 4) if monthly_hours else 0.0
+		if not monthly_hours:
+			frappe.throw(
+				f"Set Monthly Working Hours in Company Payroll Settings for {self.company}."
+			)
+		hourly_rate = flt(basic_pay / monthly_hours, 4)
 
 		overtime_types = self._bulk_load_overtime_types()
 

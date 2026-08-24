@@ -80,7 +80,12 @@ class LeaveProvision(Document):
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
 
 		self.basic_pay_component = settings.leave_provision_basic_pay_component
-		self.divisor = settings.leave_provision_divisor
+		self.divisor = flt(settings.leave_provision_divisor)
+		if self.divisor <= 0:
+			frappe.throw(
+				_("Set Daily Rate Divisor under Leave Provision in Company Payroll "
+				  "Settings for {0}.").format(self.company)
+			)
 		self.expense_account = settings.leave_provision_expense_account
 		self.liability_account = settings.leave_provision_liability_account
 
