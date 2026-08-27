@@ -34,35 +34,128 @@ frappe.ui.form.on("CBA", {
 		// increase a second time, and there is nothing to catch up on: the
 		// Employee form will not accept anyone below the agreed rate.
 		if (frm.doc.docstatus === 1 && !frm.doc.applied_on) {
+			frm.add_custom_button(__("Apply CBA to Employees"), () => confirm_apply(frm), __("Actions"));
+		}
+
+		// Once it has been applied there is a record of what that did, and the
+		// only way to reach it was to know the report existed. Offered from the
+		// agreement itself, already filtered to it.
+		if (frm.doc.applied_on) {
 			frm.add_custom_button(
-				__("Apply CBA to Employees"),
-				() => {
-					frappe.confirm(
-						__("This will update the Basic Pay for all employees. Continue?"),
-						() => {
-							frappe.show_alert({ message: __("Applying CBA to employees..."), indicator: "blue" });
-							frappe.call({
-								method: "upande_payroll.cba_utils.apply_cba_to_employees",
-								args: { cba_name: frm.doc.name },
-								callback: (r) => {
-									if (r.message && r.message.success) {
-										frappe.msgprint({
-											title: __("CBA Applied"),
-											message: r.message.message,
-											indicator: "green",
-										});
-										frm.reload_doc();
-									}
-								},
-							});
-						}
-					);
-				},
-				__("Actions")
+				__("Application Log"),
+				() => frappe.set_route("query-report", "CBA Application Log", { cba: frm.doc.name }),
+				__("View")
 			);
 		}
 	},
 });
+
+// Count first, then ask. "This will update all employees" is not something
+// anyone can reasonably agree to without knowing who that is, so the count and
+// the per-category breakdown go in the question itself.
+function confirm_apply(frm) {
+	frappe.call({
+		method: "upande_payroll.cba_utils.preview_cba_impact",
+		args: { cba_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Checking who this affects..."),
+		callback: (r) => {
+			if (!r.message) return;
+			const impact = r.message;
+
+			if (!impact.total) {
+				frappe.msgprint({
+					title: __("Nobody to apply to"),
+					message: __(
+						"No employee in {0} has a Job Category from this pay table. Set Job Category on the employee records first.",
+						[`<b>${frappe.utils.escape_html(impact.company)}</b>`]
+					),
+					indicator: "orange",
+				});
+				return;
+			}
+
+			frappe.confirm(impact_html(impact), () => run_apply(frm));
+		},
+	});
+}
+
+function impact_html(impact) {
+	const rows = impact.categories
+		.map((c) => {
+			// Nobody in the category - said plainly rather than left as a bare 0,
+			// since it nearly always means Job Category is unset on the records.
+			const who = c.count
+				? `${c.count} ${c.count === 1 ? __("employee") : __("employees")}`
+				: `<span class="text-muted">${__("nobody")}</span>`;
+			const notes = [];
+			if (c.lifted_to_scale) {
+				notes.push(__("{0} below scale, brought up to the agreed rate", [c.lifted_to_scale]));
+			}
+			// Suspended and Inactive staff are raised too - the rate belongs to
+			// the job. Said here so the payroll total holds no surprises.
+			if (c.not_active) {
+				notes.push(__("{0} not currently active", [c.not_active]));
+			}
+			const lifted = notes.length
+				? `<div class="text-muted small">${notes.join(" &middot; ")}</div>`
+				: "";
+			return `<tr>
+				<td>${frappe.utils.escape_html(c.job_category)}${lifted}</td>
+				<td class="text-right">${who}</td>
+				<td class="text-right">+${format_currency(c.increase_amount)}</td>
+				<td class="text-right">${format_currency(c.agreed_rate)}</td>
+			</tr>`;
+		})
+		.join("");
+
+	return `
+		<p>${__("This will raise the Basic Pay of <b>{0}</b> {1} in <b>{2}</b>.", [
+			impact.total,
+			impact.total === 1 ? __("employee") : __("employees"),
+			frappe.utils.escape_html(impact.company),
+		])}${
+			impact.not_active
+				? ` <span class="text-muted">${__(
+						"{0} of them are suspended or inactive - the agreed rate applies to them too.",
+						[impact.not_active]
+				  )}</span>`
+				: ""
+		}</p>
+		<table class="table table-bordered table-sm">
+			<thead>
+				<tr>
+					<th>${__("Job Category")}</th>
+					<th class="text-right">${__("Affected")}</th>
+					<th class="text-right">${__("Increase")}</th>
+					<th class="text-right">${__("Agreed Rate")}</th>
+				</tr>
+			</thead>
+			<tbody>${rows}</tbody>
+		</table>
+		<p class="text-muted small">${__("This can only be done once. Continue?")}</p>
+	`;
+}
+
+function run_apply(frm) {
+	frappe.show_alert({ message: __("Applying CBA to employees..."), indicator: "blue" });
+	frappe.call({
+		method: "upande_payroll.cba_utils.apply_cba_to_employees",
+		args: { cba_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Updating employees..."),
+		callback: (r) => {
+			if (r.message && r.message.success) {
+				frappe.msgprint({
+					title: __("CBA Applied"),
+					message: r.message.message,
+					indicator: "green",
+				});
+				frm.reload_doc();
+			}
+		},
+	});
+}
 
 // Fill the pay table from the company's last agreement, so what has to be
 // entered is this round's percentage rather than every rate from scratch.

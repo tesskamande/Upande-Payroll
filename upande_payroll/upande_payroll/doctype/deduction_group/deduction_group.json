@@ -1,11 +1,11 @@
 {
  "actions": [],
- "autoname": "format:{company}-{group_name}",
  "creation": "2026-08-03 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "group_name",
+  "shared",
   "company",
   "column_break_dg1",
   "priority",
@@ -16,6 +16,15 @@
  ],
  "fields": [
   {
+   "default": "0",
+   "description": "Tick to let every company on the site use this group.",
+   "fieldname": "shared",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Shared Across Companies"
+  },
+  {
    "description": "A name your team will recognise, like Sacco, Welfare or Unions.",
    "fieldname": "group_name",
    "fieldtype": "Data",
@@ -24,13 +33,15 @@
    "reqd": 1
   },
   {
+   "depends_on": "eval:!doc.shared",
+   "description": "Which company's Deduction Priority may use this group.",
    "fieldname": "company",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Company",
-   "options": "Company",
-   "reqd": 1
+   "mandatory_depends_on": "eval:!doc.shared",
+   "options": "Company"
   },
   {
    "fieldname": "column_break_dg1",
@@ -75,6 +86,7 @@
   },
   {
    "default": "In Priority Order",
+   "depends_on": "eval:doc.reducible && doc.on_shortfall == \"Carry Forward\"",
    "description": "When a later month has money left over, is this group's unpaid balance cleared before or after the other groups.",
    "fieldname": "catch_up_order",
    "fieldtype": "Select",
@@ -88,7 +100,6 @@
  "modified_by": "Administrator",
  "module": "Upande Payroll",
  "name": "Deduction Group",
- "naming_rule": "Expression (old style)",
  "owner": "Administrator",
  "permissions": [
   {

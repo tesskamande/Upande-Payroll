@@ -44,12 +44,14 @@
   {
    "fieldname": "effective_start_date",
    "fieldtype": "Date",
-   "label": "Effective Start Date"
+   "label": "Effective Start Date",
+   "reqd": 1
   },
   {
    "fieldname": "effective_end_date",
    "fieldtype": "Date",
-   "label": "Effective End Date"
+   "label": "Effective End Date",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_hjqs",
@@ -82,14 +84,21 @@
    "description": "When the pay table was pushed out to employees. Set once; the agreement cannot be applied twice.",
    "fieldname": "applied_on",
    "fieldtype": "Datetime",
+   "hidden": 1,
    "label": "Applied On",
+   "no_copy": 1,
    "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
- "links": [],
+ "links": [
+  {
+   "link_doctype": "CBA Application Log",
+   "link_fieldname": "cba"
+  }
+ ],
  "modified": "2026-07-16 19:25:42.596309",
  "modified_by": "Administrator",
  "module": "Upande Payroll",

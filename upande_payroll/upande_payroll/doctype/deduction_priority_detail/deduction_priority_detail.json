@@ -9,11 +9,12 @@
   "loan_product",
   "deduction_group",
   "group_priority",
+  "override_priority",
   "on_shortfall"
  ],
  "fields": [
   {
-   "columns": 4,
+   "columns": 3,
    "description": "Leave empty and set Loan Product instead to rank a loan.",
    "fieldname": "salary_component",
    "fieldtype": "Link",
@@ -24,7 +25,7 @@
    "read_only_depends_on": "eval:doc.loan_product"
   },
   {
-   "columns": 3,
+   "columns": 2,
    "description": "Which group this one is in.",
    "fieldname": "deduction_group",
    "fieldtype": "Link",
@@ -44,7 +45,16 @@
    "read_only": 1
   },
   {
-   "columns": 2,
+   "columns": 1,
+   "description": "Leave blank to use the group's priority. Set it only to rank this one differently from the rest of its group.",
+   "fieldname": "override_priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Override Pri",
+   "non_negative": 1
+  },
+  {
+   "columns": 1,
    "fetch_from": "deduction_group.on_shortfall",
    "fieldname": "on_shortfall",
    "fieldtype": "Data",

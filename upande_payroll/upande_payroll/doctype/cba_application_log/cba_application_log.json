@@ -1,0 +1,143 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "hash",
+ "creation": "2026-08-26 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 0,
+ "engine": "InnoDB",
+ "field_order": [
+  "cba",
+  "employee",
+  "employee_name",
+  "job_category",
+  "column_break_rate",
+  "company",
+  "previous_basic_pay",
+  "increase_amount",
+  "new_basic_pay",
+  "section_break_run",
+  "applied_on",
+  "applied_by"
+ ],
+ "fields": [
+  {
+   "fieldname": "cba",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "CBA",
+   "options": "CBA",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "read_only": 1,
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "description": "Stored as text, not a link, so a category later renamed or removed from the pay table does not rewrite what was actually paid.",
+   "fieldname": "job_category",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Job Category",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_rate",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
+   "fieldname": "previous_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Previous Basic Pay",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "increase_amount",
+   "fieldtype": "Currency",
+   "label": "Increase Amount",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "new_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "New Basic Pay",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_run",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "applied_on",
+   "fieldtype": "Datetime",
+   "label": "Applied On",
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "applied_by",
+   "fieldtype": "Link",
+   "label": "Applied By",
+   "options": "User",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-08-26 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "CBA Application Log",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "applied_on",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 0
+}

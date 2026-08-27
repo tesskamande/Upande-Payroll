@@ -79,6 +79,18 @@ class LeaveProvision(Document):
 
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
 
+		# Said out loud rather than returned quietly. The other features in this
+		# app are gated inside hooks on somebody else's document, where silence is
+		# the right answer - a payslip with no overtime looks like a payslip. This
+		# document exists for nothing else, so somebody who created one and
+		# expected numbers needs telling why there are none.
+		if not settings.enable_leave_provision:
+			frappe.throw(_(
+				"Leave Provision is switched off for {0}. Tick Enable Leave "
+				"Provision under Leave Provision in Company Payroll Settings, "
+				"fill in the settings below it, and try again."
+			).format(self.company))
+
 		self.basic_pay_component = settings.leave_provision_basic_pay_component
 		self.divisor = flt(settings.leave_provision_divisor)
 		if self.divisor <= 0:

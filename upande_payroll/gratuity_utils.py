@@ -410,6 +410,34 @@ def _fill_prior_year_figures(doc):
 		row.paye_already_paid = paye
 
 
+def slab_in_effect(company, lookup_date):
+	"""The Income Tax Slab that was law on a date, for pay in this company's currency.
+
+	Deliberately not filtered by company. Income tax is national law, so a slab
+	records the bands as they stood rather than one company's copy of them - and
+	ERPNext agrees: ``company`` on Income Tax Slab is optional, which is how a
+	single shared record is meant to be expressed. Filtering by it made that
+	shared record invisible, and obliged every company on a site to duplicate
+	the same bands and to keep duplicating them each time the bands change.
+
+	Currency scopes it instead. The bands are amounts and ``currency`` is
+	mandatory on the slab, so a slab denominated in one currency says nothing
+	about pay reported in another - which is the one distinction that does have
+	to be honoured on a site running companies in more than one country.
+
+	Where several slabs qualify, the one that took effect most recently on or
+	before the date wins, whichever company happens to own the record.
+	"""
+	currency = frappe.get_cached_value("Company", company, "default_currency")
+	filters = {"effective_from": ("<=", lookup_date), "disabled": 0}
+	if currency:
+		filters["currency"] = currency
+
+	return frappe.db.get_value(
+		"Income Tax Slab", filters, "name", order_by="effective_from desc"
+	)
+
+
 def _calculate_tax_on_rows(doc):
 	"""Compute PAYE due on each Gratuity Tax Computation row where Annual
 	Taxable Pay is known - carried over from the previous system, worked out
@@ -431,12 +459,7 @@ def _calculate_tax_on_rows(doc):
 			continue
 
 		lookup_date = f"{row.gratuity_year}-12-31"
-		slab_name = frappe.db.get_value(
-			"Income Tax Slab",
-			{"company": doc.company, "effective_from": ("<=", lookup_date), "disabled": 0},
-			"name",
-			order_by="effective_from desc",
-		)
+		slab_name = slab_in_effect(doc.company, lookup_date)
 		if not slab_name:
 			frappe.msgprint(
 				f"No Income Tax Slab found for year {row.gratuity_year} "

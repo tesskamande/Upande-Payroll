@@ -67,62 +67,180 @@ def get_cba_minimum(job_category, company=None):
 	return flt(row.current_basic_pay)
 
 
+def pay_rules(cba):
+	"""What each Job Category in the pay table is worth, keyed by category."""
+	rules = {
+		row.job_category: {
+			# The rate the agreement moves the category to, and the same figure
+			# the Employee form enforces once this is applied. Taking the old
+			# rate here left apply writing pay that the form then refused to
+			# save - lifted to 9,731 while being held to 10,607.
+			"agreed_rate": flt(row.new_basic_pay) or flt(row.current_basic_pay),
+			"increase_amount": flt(row.increase_amount),
+		}
+		for row in cba.table_dqro
+		if row.job_category
+	}
+	if not rules:
+		frappe.throw(_("CBA Pay Table is empty. Add job categories before applying."))
+	return rules
+
+
+# Everyone still on the books. Suspended and Inactive staff are covered by the
+# agreement exactly as Active ones are - the rate attaches to the job, not to
+# whether somebody happens to be at work this month. Filtering to Active alone
+# also left them stranded: skipped by apply, yet still held to the new rate by
+# the Employee validate hook, so their records could not be saved at all until
+# somebody raised them by hand. Left is the one status that ends it.
+COVERED_STATUSES = ("Active", "Inactive", "Suspended")
+
+
+def affected_employees(cba, cba_map):
+	"""Everyone this agreement would touch: on the books, in its Company, in one
+	of its categories.
+
+	Shared by the preview and by apply, so the count shown before pressing the
+	button is the count that gets raised - not a second query that could drift
+	from it.
+	"""
+	return frappe.get_all(
+		"Employee",
+		filters={
+			"status": ["in", COVERED_STATUSES],
+			"company": cba.company,
+			"job_category": ["in", list(cba_map.keys())],
+		},
+		fields=["name", "employee_name", "status", "job_category", "basic_pay"],
+		order_by="job_category, employee_name",
+	)
+
+
+def new_basic_pay(current, rule):
+	"""The increase on top of what they earn, floored at the agreed rate.
+
+	Whichever is higher: a differential earned above the old scale is not
+	flattened, and nobody is left under the new one.
+	"""
+	return round(max(flt(current) + rule["increase_amount"], rule["agreed_rate"]), 2)
+
+
+@frappe.whitelist()
+def preview_cba_impact(cba_name):
+	"""Who this agreement would raise, and by how much, before anything is
+	written.
+
+	Asked for confirmation without saying how many people it covers, the only
+	honest answer is to go and count - so the button counts first.
+	"""
+	cba = frappe.get_doc("CBA", cba_name)
+	# frappe.get_doc does not consult the permission system, and a whitelisted
+	# method is reachable by any logged-in user. Without this, the pay scale and
+	# everyone's headcount were readable by a portal login. Asking the document
+	# rather than naming a role means the Role Permissions Manager governs it.
+	cba.check_permission("read")
+
+	cba_map = pay_rules(cba)
+	employees = affected_employees(cba, cba_map)
+
+	categories = {}
+	for emp in employees:
+		rule = cba_map[emp.job_category]
+		row = categories.setdefault(emp.job_category, {
+			"job_category": emp.job_category,
+			"agreed_rate": rule["agreed_rate"],
+			"increase_amount": rule["increase_amount"],
+			"count": 0,
+			"lifted_to_scale": 0,
+			"not_active": 0,
+		})
+		row["count"] += 1
+		# Worth separating: these are the ones whose rise is more than the
+		# negotiated amount, because they were under the old scale to begin
+		# with. A surprise in the payroll total usually traces back to them.
+		if flt(emp.basic_pay) + rule["increase_amount"] < rule["agreed_rate"]:
+			row["lifted_to_scale"] += 1
+		# Counted and raised, but not at work - worth saying so before the
+		# button is pressed, rather than leaving it to be noticed in the total.
+		if emp.status != "Active":
+			row["not_active"] += 1
+
+	# Categories with nobody in them are worth showing too - an empty one is
+	# usually a Job Category left unset on the employee records.
+	for job_category, rule in cba_map.items():
+		categories.setdefault(job_category, {
+			"job_category": job_category,
+			"agreed_rate": rule["agreed_rate"],
+			"increase_amount": rule["increase_amount"],
+			"count": 0,
+			"lifted_to_scale": 0,
+			"not_active": 0,
+		})
+
+	return {
+		"total": len(employees),
+		"not_active": sum(1 for emp in employees if emp.status != "Active"),
+		"company": cba.company,
+		"applied_on": cba.applied_on,
+		"categories": sorted(
+			categories.values(), key=lambda r: (-r["count"], r["job_category"])
+		),
+	}
+
+
 @frappe.whitelist()
 def apply_cba_to_employees(cba_name):
 	"""Bulk-apply a submitted CBA's pay table to every active employee in the
 	CBA's Company whose Job Category matches a row in it.
 
-	Employees below the category minimum are lifted to it; everyone else gets
-	the category's flat Increase Amount on top of their current Basic Pay.
+	Everyone gets the category's flat Increase Amount on top of their current
+	Basic Pay, and nobody ends below the category's New Basic Pay - so someone
+	already paid above the old scale keeps that margin, and someone below it
+	comes up to scale.
 
 	What someone was on before is not copied onto the Employee record - their
 	salary slips already carry it, period by period, and a single field could
 	only ever hold the last change.
 	"""
 	cba = frappe.get_doc("CBA", cba_name)
+	# Raising everyone's pay is the most consequential thing this app does, and a
+	# whitelisted method gets none of the doctype's permissions for free. Submit
+	# rights on the agreement and write rights on Employee, both as configured -
+	# no role is named here, so permissions stay where they are administered.
+	cba.check_permission("submit")
+	frappe.has_permission("Employee", "write", throw=True)
+
 	if cba.docstatus != 1:
 		frappe.throw(_("CBA must be submitted before it can be applied."))
+
+	# Lock the agreement's own row before reading applied_on. Two people pressing
+	# the button together both used to read it as empty and both went on to
+	# apply, so everyone got the increase twice. Whoever gets the lock second
+	# waits here, and then sees the timestamp the first one wrote.
+	applied_on = frappe.db.get_value("CBA", cba.name, "applied_on", for_update=True)
 
 	# Once only. Every press adds the increase again, and re-applying to pick up
 	# a new starter would raise everyone else a second time. The minimum check on
 	# the Employee form is what makes this safe: nobody can be entered below the
 	# agreed rate, so there is nothing to catch up on later.
-	if cba.applied_on:
-		frappe.throw(_(
-			"This agreement was applied on {0}. Applying it again would increase "
-			"everyone a second time. A new employee is entered at the agreed rate "
-			"directly - the form will not accept less."
-		).format(frappe.format_value(cba.applied_on, {"fieldtype": "Datetime"})))
+	if applied_on:
+		frappe.throw(
+			_(
+				"This agreement was already applied on {0}, and pay has been "
+				"raised. Applying it again would add the increase a second time. "
+				"A new employee is entered at the agreed rate directly - the "
+				"form will not accept less."
+			).format(frappe.format_value(applied_on, {"fieldtype": "Datetime"})),
+			title=_("Already Applied"),
+		)
 
-	cba_map = {
-		row.job_category: {
-			"minimum": flt(row.current_basic_pay),
-			"increase_amount": flt(row.increase_amount),
-		}
-		for row in cba.table_dqro
-		if row.job_category
-	}
-	if not cba_map:
-		frappe.throw("CBA Pay Table is empty. Add job categories before applying.")
+	cba_map = pay_rules(cba)
+	employees = affected_employees(cba, cba_map)
 
-	employees = frappe.get_all(
-		"Employee",
-		filters={
-			"status": "Active",
-			"company": cba.company,
-			"job_category": ["in", list(cba_map.keys())],
-		},
-		fields=["name", "job_category", "basic_pay"],
-	)
-
+	applied_at = now()
 	updated = 0
 	for emp in employees:
-		rule = cba_map[emp.job_category]
-		current_pay = flt(emp.basic_pay)
-		if current_pay < rule["minimum"]:
-			new_pay = rule["minimum"]
-		else:
-			new_pay = round(current_pay + rule["increase_amount"], 2)
+		previous_pay = flt(emp.basic_pay)
+		new_pay = new_basic_pay(previous_pay, cba_map[emp.job_category])
 
 		frappe.db.set_value(
 			"Employee",
@@ -130,9 +248,27 @@ def apply_cba_to_employees(cba_name):
 			{"basic_pay": new_pay},
 			update_modified=False,
 		)
+
+		# What the raise actually was, per person, recorded as it happens.
+		# Writing pay with update_modified=False leaves no version history, so
+		# without this the run is invisible afterwards - and "who went up, from
+		# what, by how much" is the first thing anyone asks.
+		frappe.get_doc({
+			"doctype": "CBA Application Log",
+			"cba": cba.name,
+			"company": cba.company,
+			"employee": emp.name,
+			"employee_name": emp.employee_name,
+			"job_category": emp.job_category,
+			"previous_basic_pay": previous_pay,
+			"increase_amount": round(new_pay - previous_pay, 2),
+			"new_basic_pay": new_pay,
+			"applied_on": applied_at,
+			"applied_by": frappe.session.user,
+		}).insert(ignore_permissions=True)
 		updated += 1
 
-	frappe.db.set_value("CBA", cba.name, "applied_on", now(), update_modified=False)
+	frappe.db.set_value("CBA", cba.name, "applied_on", applied_at, update_modified=False)
 	frappe.db.commit()
 
 	if employees:

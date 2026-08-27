@@ -146,12 +146,18 @@ after_install = "upande_payroll.setup.after_migrate"
 
 doctype_js = {
 	"Employee": "public/js/employee.js",
+	# Filters the Employer Expense Account by the row's own company, the way
+	# HRMS already filters the Account field next to it.
+	"Salary Component": "public/js/salary_component.js",
 	"Gratuity": "public/js/gratuity.js",
 	"Leave Encashment": "public/js/leave_encashment.js",
 	"Payroll Entry": "public/js/payroll_entry.js",
 	"Salary Slip": "public/js/salary_slip.js",
 }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {
+	# Show Withheld in the list, which Frappe's docstatus-only default hides.
+	"Salary Slip": "public/js/salary_slip_list.js",
+}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 

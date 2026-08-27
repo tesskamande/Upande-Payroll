@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 # Employee fields Payroll Entry can narrow a run by, on top of the branch,
 # department, designation and grade HRMS already offers.
@@ -34,10 +35,113 @@ class PayrollEntryMixin:
 		so nothing else is affected.
 		"""
 		rows = super().get_salary_slip_details(for_withheld_salaries)
+
+		# Releasing a chosen few rather than everyone withheld this period.
+		# release_withheld_salaries() puts the choice here because this is the
+		# one place the bank entry decides whose money it is paying - the same
+		# rows also decide which withholding cycles get stamped and released.
+		chosen = getattr(self, "_release_employees", None)
+		if for_withheld_salaries and chosen:
+			rows = [row for row in rows if row.employee in chosen]
+
 		employer_side = employer_contribution_components()
 		if not employer_side:
 			return rows
 		return [row for row in rows if row.salary_component not in employer_side]
+
+	@frappe.whitelist()
+	def has_bank_entries(self) -> dict[str, bool]:
+		"""Whether the two bank-entry buttons should be offered.
+
+		HRMS answers the withheld half with "is nobody flagged withheld", and
+		that flag only clears once the withheld journal is SUBMITTED. So between
+		raising the journal and posting it - which is exactly where someone sits
+		while they check the figures - the button stays live, and every further
+		click writes another draft for the same money. Nothing links the drafts
+		and each one is submittable.
+
+		Asking for the journal itself instead closes that window. The ordinary
+		half is left as HRMS wrote it.
+		"""
+		result = super().has_bank_entries()
+		if not result.get("has_bank_entries_for_withheld_salaries"):
+			if self.pending_withheld_bank_entry():
+				result["has_bank_entries_for_withheld_salaries"] = True
+		return result
+
+	@frappe.whitelist()
+	def make_bank_entry(self, for_withheld_salaries=False):
+		"""Guard the same window on the server, for anything not going through
+		the button - a repost, an integration, a second browser tab."""
+		if for_withheld_salaries:
+			pending = self.pending_withheld_bank_entry()
+			if pending:
+				frappe.throw(
+					_("{0} already covers the withheld salaries on this run and has not "
+					  "been submitted. Submit or delete it before raising another.").format(
+						frappe.utils.get_link_to_form("Journal Entry", pending)
+					),
+					title=_("Bank Entry Already Raised"),
+				)
+		return super().make_bank_entry(for_withheld_salaries=for_withheld_salaries)
+
+	def pending_withheld_bank_entry(self):
+		"""An unsubmitted withheld bank entry for this run, if there is one.
+
+		Told apart from an ordinary bank entry by the withholding cycle it is
+		stamped on rather than by its remark, which is translated and would stop
+		matching in any other language.
+		"""
+		found = frappe.db.sql_list(
+			"""
+			SELECT DISTINCT je.name
+			FROM `tabJournal Entry` je
+			INNER JOIN `tabJournal Entry Account` jea ON jea.parent = je.name
+			INNER JOIN `tabSalary Withholding Cycle` c ON c.journal_entry = je.name
+			WHERE je.docstatus = 0
+				AND jea.reference_type = 'Payroll Entry'
+				AND jea.reference_name = %s
+			LIMIT 1
+			""",
+			self.name,
+		)
+		return found[0] if found else None
+
+	@frappe.whitelist()
+	def release_withheld_salaries(self, employees=None):
+		"""Raise the withheld bank entry for the employees chosen, not for all.
+
+		HRMS releases everyone withheld in the run at once. Passing nothing here
+		keeps that behaviour, so the stock button still works.
+		"""
+		self.check_permission("write")
+		chosen = frappe.parse_json(employees) if employees else None
+		if chosen:
+			self._release_employees = {e for e in chosen if e}
+			if not self._release_employees:
+				frappe.throw(_("Choose at least one employee to release."))
+		try:
+			entry = self.make_bank_entry(for_withheld_salaries=True)
+		finally:
+			self._release_employees = None
+
+		if not entry:
+			frappe.throw(_("Nothing to release for the employees chosen."))
+		return entry.name
+
+	@frappe.whitelist()
+	def withheld_employees(self):
+		"""Who is still withheld on this run, for the release dialog."""
+		return frappe.db.sql(
+			"""
+			SELECT ss.employee, ss.employee_name, ss.net_pay, ss.salary_withholding
+			FROM `tabSalary Slip` ss
+			WHERE ss.payroll_entry = %s AND ss.docstatus = 1 AND ss.status = 'Withheld'
+			ORDER BY ss.employee_name
+			""",
+			self.name,
+			as_dict=True,
+		)
 
 	def make_filters(self):
 		filters = super().make_filters()

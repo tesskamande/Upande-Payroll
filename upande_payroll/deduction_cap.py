@@ -222,13 +222,15 @@ def _priority_rules(config):
 				"Deduction Group", row.deduction_group
 			)
 		group = groups[row.deduction_group]
-		# Rank comes from the group, and only from the group. A row used to be
-		# able to override it, which meant two deductions sitting in the same
-		# group could behave differently with nothing on the form to say why.
-		# Anything that needs its own rank needs its own group.
+		# Rank comes from the group unless the row says otherwise. The override
+		# exists because a group is two things at once in practice - a label
+		# people recognise, and a rank - and a company whose Sacco loans give way
+		# in a different order from its Sacco shares should not have to invent a
+		# second group to say so. It sits beside Group Pri in the grid, so a row
+		# ranked away from its group shows why on the form rather than only here.
 		rules[key] = frappe._dict({
 			"group": group.name,
-			"priority": flt(group.priority),
+			"priority": flt(row.override_priority or group.priority),
 			"reducible": bool(group.reducible),
 			"on_shortfall": group.on_shortfall or "Carry Forward",
 			"tie_breaker": group.tie_breaker or "Pro-rata",

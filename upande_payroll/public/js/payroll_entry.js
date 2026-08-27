@@ -16,8 +16,139 @@ frappe.ui.form.on("Payroll Entry", {
 			() => open_leave_provision(frm),
 			__("Create")
 		);
+
+	},
+
+	/*
+	 * Reuses HRMS's own Release Withheld Salaries button rather than adding
+	 * another one.
+	 *
+	 * add_context_buttons() calls frm.events.add_bank_entry_button(frm), and
+	 * frappe.ui.form.on assigns the LAST registered handler to frm.events. A
+	 * doctype's own script is loaded first and doctype_js hooks are appended
+	 * after it (frappe/desk/form/meta.py:95 then :111), so this definition wins
+	 * and the button is built here.
+	 *
+	 * Make Bank Entry is left exactly as HRMS has it. Only the withheld path
+	 * changes, and only to ask who is being released before writing a journal
+	 * that pays them.
+	 */
+	add_bank_entry_button(frm) {
+		frm.call("has_bank_entries").then((r) => {
+			if (!r.message) return;
+
+			if (!r.message.has_bank_entries) {
+				frm.add_custom_button(__("Make Bank Entry"), () =>
+					frm.events.upande_make_bank_entry(frm, 0)
+				).addClass("btn-primary");
+			} else if (!r.message.has_bank_entries_for_withheld_salaries) {
+				frm.add_custom_button(__("Release Withheld Salaries"), () =>
+					open_release_dialog(frm)
+				).addClass("btn-primary");
+			}
+		});
+	},
+
+	// HRMS keeps its own make_bank_entry as a module-local function, so it
+	// cannot be called from here. This is the same call it makes.
+	upande_make_bank_entry(frm, for_withheld_salaries) {
+		if (!frm.doc.payment_account) {
+			frappe.msgprint(__("Payment Account is mandatory"));
+			frm.scroll_to_field("payment_account");
+			return;
+		}
+		return frappe.call({
+			method: "run_doc_method",
+			args: {
+				method: "make_bank_entry",
+				dt: "Payroll Entry",
+				dn: frm.doc.name,
+				args: { for_withheld_salaries: for_withheld_salaries },
+			},
+			freeze: true,
+			freeze_message: __("Creating Payment Entries......"),
+			callback: () => {
+				frappe.set_route("List", "Journal Entry", {
+					"Journal Entry Account.reference_name": frm.doc.name,
+				});
+			},
+		});
 	},
 });
+
+function open_release_dialog(frm) {
+	frm.call({ method: "withheld_employees", doc: frm.doc }).then((r) => {
+		const rows = r.message || [];
+		if (!rows.length) {
+			frappe.msgprint({
+				message: __("No withheld salaries left to release on this run."),
+				indicator: "green",
+			});
+			return;
+		}
+
+		const dialog = new frappe.ui.Dialog({
+			title: __("Release Withheld Salaries"),
+			size: "large",
+			fields: [
+				{
+					fieldname: "employees",
+					fieldtype: "Table",
+					label: __("Withheld this period"),
+					cannot_add_rows: true,
+					cannot_delete_rows: true,
+					in_place_edit: false,
+					data: rows.map((row) => ({
+						release: 1,
+						employee: row.employee,
+						employee_name: row.employee_name,
+						net_pay: row.net_pay,
+					})),
+					get_data: () => dialog.fields_dict.employees.grid.data,
+					fields: [
+						{ fieldname: "release", fieldtype: "Check", label: __("Release"),
+						  in_list_view: 1, columns: 1, default: 1 },
+						{ fieldname: "employee", fieldtype: "Data", label: __("ID"),
+						  in_list_view: 1, columns: 2, read_only: 1 },
+						{ fieldname: "employee_name", fieldtype: "Data", label: __("Employee"),
+						  in_list_view: 1, columns: 5, read_only: 1 },
+						{ fieldname: "net_pay", fieldtype: "Currency", label: __("Net Pay"),
+						  in_list_view: 1, columns: 3, read_only: 1 },
+					],
+				},
+			],
+			primary_action_label: __("Create Bank Entry"),
+			primary_action() {
+				const picked = (dialog.fields_dict.employees.grid.get_data() || [])
+					.filter((row) => row.release)
+					.map((row) => row.employee);
+
+				if (!picked.length) {
+					frappe.msgprint(__("Tick at least one employee to release."));
+					return;
+				}
+
+				dialog.hide();
+				frm.call({
+					method: "release_withheld_salaries",
+					doc: frm.doc,
+					args: { employees: JSON.stringify(picked) },
+					freeze: true,
+					freeze_message: __("Creating the bank entry..."),
+				}).then((res) => {
+					if (!res.message) return;
+					frappe.show_alert({
+						message: __("{0} created for {1} employee(s). Submit it to release the salaries.",
+									[res.message, picked.length]),
+						indicator: "green",
+					}, 10);
+					frappe.set_route("Form", "Journal Entry", res.message);
+				});
+			},
+		});
+		dialog.show();
+	});
+}
 
 function open_leave_provision(frm) {
 	frappe.db

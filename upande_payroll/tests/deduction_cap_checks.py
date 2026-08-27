@@ -16,7 +16,7 @@ unconfigured company, and leavers.
 """
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 COMPANY = "Karen Roses"
 RESULTS = []
@@ -120,7 +120,9 @@ def assign(emp, struct, base):
     a.submit()
 
 
-def priority(wage_base, mapping, base_components=None):
+def priority(wage_base, mapping, base_components=None, overrides=None):
+    """``overrides`` ranks a component away from its group: {component: rank}."""
+    overrides = overrides or {}
     dp = (frappe.get_doc("Deduction Priority", COMPANY)
           if frappe.db.exists("Deduction Priority", COMPANY)
           else frappe.get_doc({"doctype": "Deduction Priority", "company": COMPANY}))
@@ -128,7 +130,8 @@ def priority(wage_base, mapping, base_components=None):
     dp.set("deductions", [])
     dp.set("base_components", [])
     for c, g in mapping.items():
-        dp.append("deductions", {"salary_component": c, "deduction_group": g})
+        dp.append("deductions", {"salary_component": c, "deduction_group": g,
+                                 "override_priority": overrides.get(c)})
     for c in (base_components or []):
         dp.append("base_components", {"salary_component": c})
     dp.save(ignore_permissions=True)
@@ -429,6 +432,42 @@ def run():
     s = slip(e11, S_OVER, "2026-10-01", "2026-10-31")
     check("J10 leaving date in the future is not final", s.custom_one_third_rule_skipped, 0)
     check("J11 that month is still capped", amt(s, adv), 20000)
+
+    # ---- K. a row ranked away from its group ----------------------------
+    # Two deductions in one group, one of them overridden. Without the override
+    # they share a rank and the cut is split; with it, the overridden one is the
+    # lowest rank in the list and gives way on its own. This is the whole point
+    # of the field: a group stays the label people recognise, while one member
+    # of it can still be told to go first.
+    S_OVR = structure("T8 Override", [basic],
+                      [{"salary_component": adv, "amount": 12000,
+                        "depends_on_payment_days": 0},
+                       {"salary_component": sacco, "amount": 12000,
+                        "depends_on_payment_days": 0}])
+    e12 = employee("SUITE Override")
+    assign(e12, S_OVR, 30000)
+
+    # 30,000 wages, so 20,000 permitted against 24,000 of deductions.
+    priority("Cash Wages", {adv: COOP, sacco: COOP})
+    s = slip(e12, S_OVR, "2026-10-01", "2026-10-31")
+    check("K1 same rank: cut shared pro-rata (advance)", amt(s, adv), 10000)
+    check("K2 same rank: cut shared pro-rata (sacco)", amt(s, sacco), 10000)
+
+    priority("Cash Wages", {adv: COOP, sacco: COOP}, overrides={sacco: 9})
+    s = slip(e12, S_OVR, "2026-10-01", "2026-10-31")
+    check("K3 override: sacco alone bears the whole cut", amt(s, sacco), 8000)
+    check("K4 override: advance is left whole", amt(s, adv), 12000)
+
+    dp = frappe.get_doc("Deduction Priority", COMPANY)
+    row = next(r for r in dp.deductions if r.salary_component == sacco)
+    check("K5 the group's own rank is untouched", row.group_priority, 3)
+    check("K6 the override is what moved it", row.override_priority, 9)
+
+    # An override equal to the group's rank says nothing, so it is not kept.
+    priority("Cash Wages", {adv: COOP, sacco: COOP}, overrides={sacco: 3})
+    dp = frappe.get_doc("Deduction Priority", COMPANY)
+    row = next(r for r in dp.deductions if r.salary_component == sacco)
+    check("K7 an override matching the group is cleared", cint(row.override_priority), 0)
 
     # ---- report ---------------------------------------------------------
     passed = sum(1 for r in RESULTS if r[0])

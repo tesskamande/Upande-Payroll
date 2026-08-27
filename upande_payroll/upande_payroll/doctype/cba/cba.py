@@ -6,11 +6,13 @@ import math
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import flt, getdate
 
 
 class CBA(Document):
 	def validate(self):
+		self.validate_dates()
+		self.validate_one_row_per_category()
 		self.carry_forward_previous_rates()
 		for row in self.table_dqro:
 			current_basic_pay = flt(row.current_basic_pay)
@@ -18,6 +20,44 @@ class CBA(Document):
 			increase_amount = math.ceil(current_basic_pay * percentage_increase / 100)
 			row.increase_amount = increase_amount
 			row.new_basic_pay = current_basic_pay + increase_amount
+
+	def validate_dates(self):
+		"""An agreement that ends before it starts covers nothing.
+
+		Both dates are required on the form. This is the other half of it: the
+		order has to make sense, or the period is empty and every date-based
+		lookup silently finds nothing.
+		"""
+		if (
+			self.effective_start_date
+			and self.effective_end_date
+			and getdate(self.effective_end_date) < getdate(self.effective_start_date)
+		):
+			frappe.throw(_(
+				"Effective End Date ({0}) is before Effective Start Date ({1})."
+			).format(
+				frappe.format_value(self.effective_end_date, {"fieldtype": "Date"}),
+				frappe.format_value(self.effective_start_date, {"fieldtype": "Date"}),
+			))
+
+	def validate_one_row_per_category(self):
+		"""One rate per Job Category.
+
+		Two rows for the same category is not a richer agreement, it is an
+		ambiguous one - and applying it kept whichever row happened to sit last
+		in the grid and dropped the other without saying so. Better to refuse
+		than to pay people according to row order.
+		"""
+		seen = {}
+		for row in self.table_dqro:
+			if not row.job_category:
+				continue
+			if row.job_category in seen:
+				frappe.throw(_(
+					"{0} appears twice in the pay table, in rows {1} and {2}. "
+					"Keep one rate per Job Category."
+				).format(row.job_category, seen[row.job_category], row.idx))
+			seen[row.job_category] = row.idx
 
 	def carry_forward_previous_rates(self):
 		"""Start a new agreement from where the last one left off.
@@ -69,6 +109,10 @@ def previous_rates(company, before=None, exclude=None):
 	company and date are known, and validate can fall back on the same figures
 	if it was never asked.
 	"""
+	# Whitelisted, so reachable by any logged-in user - and what it returns is
+	# the whole negotiated pay scale. A portal login could read it before this.
+	frappe.has_permission("CBA", "read", throw=True)
+
 	if not company:
 		return []
 
