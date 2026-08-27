@@ -115,11 +115,18 @@ class PayrollEntryMixin:
 		keeps that behaviour, so the stock button still works.
 		"""
 		self.check_permission("write")
-		chosen = frappe.parse_json(employees) if employees else None
-		if chosen:
-			self._release_employees = {e for e in chosen if e}
-			if not self._release_employees:
+		# None means "release everyone", which is what the stock button does.
+		# An empty list is a different thing - somebody chose nobody - and must
+		# not fall through to paying the whole run.
+		if employees is None:
+			chosen = None
+		else:
+			chosen = [e for e in (frappe.parse_json(employees) or []) if e]
+			if not chosen:
 				frappe.throw(_("Choose at least one employee to release."))
+
+		if chosen:
+			self._release_employees = set(chosen)
 		try:
 			entry = self.make_bank_entry(for_withheld_salaries=True)
 		finally:

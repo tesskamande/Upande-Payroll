@@ -10,6 +10,11 @@
 frappe.listview_settings["Salary Slip"] = frappe.listview_settings["Salary Slip"] || {};
 
 Object.assign(frappe.listview_settings["Salary Slip"], {
+	// The list only fetches name, docstatus, idx and the in_list_view fields.
+	// status is none of those, so without this it arrives undefined and the
+	// indicator below falls straight through to the docstatus branches.
+	add_fields: ["status"],
+
 	get_indicator: function (doc) {
 		if (doc.status === "Withheld") {
 			return [__("Withheld"), "orange", "status,=,Withheld"];
