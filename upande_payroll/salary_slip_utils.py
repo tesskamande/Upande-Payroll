@@ -103,3 +103,82 @@ def apply_capped_loan_repayment(doc):
 	doc.rounded_total = rounded(doc.net_pay)
 	doc.base_net_pay = flt(doc.net_pay) * flt(doc.exchange_rate or 1)
 	doc.base_rounded_total = rounded(doc.base_net_pay)
+
+
+def sort_components_by_structure(doc, method=None):
+	"""Put the payslip's rows back into the order the Salary Structure lists them.
+
+	Core builds the slip one structure row at a time, so it starts out in the
+	right order, but two things disturb it. A row that works out to zero is
+	dropped when its component is set to remove_if_zero_valued, and anything
+	written afterwards is appended to the end: a statutory figure this app
+	computes, an Additional Salary, an advance. So a component the structure
+	puts in the middle can surface at the bottom of the payslip. Taxable Income
+	sits sixth in DEMO One Third and came out last, below the employer
+	contributions.
+
+	Nothing about the money changes here - the same rows carry the same amounts,
+	and the totals were worked out before this runs. Only the order moves.
+
+	Rows whose component the structure does not list - an Additional Salary for
+	a component that is not on it, an advance - keep their own order and follow
+	the ones it does, because there is nothing to line them up against.
+	"""
+	if not doc.get("salary_structure"):
+		return
+
+	for parentfield in ("earnings", "deductions"):
+		rows = doc.get(parentfield) or []
+		if len(rows) < 2:
+			continue
+
+		position, visiting = _structure_positions(doc.salary_structure, parentfield)
+		if not position:
+			continue
+
+		# sorted() is stable, so rows sharing a key hold the order they already
+		# had rather than being shuffled among themselves.
+		ordered = sorted(rows, key=lambda row: position.get(row.salary_component, visiting))
+		if all(before is after for before, after in zip(rows, ordered)):
+			continue
+
+		# Passing the existing row objects back keeps each child row's name, so
+		# this reorders them rather than deleting and reinserting the table on
+		# every save. append() leaves an idx that is already set alone, which is
+		# why they are renumbered afterwards.
+		doc.set(parentfield, ordered)
+		for index, row in enumerate(doc.get(parentfield), start=1):
+			row.idx = index
+
+
+def _structure_positions(structure, parentfield):
+	"""Where the Salary Structure lists each component, and where a component it
+	does not list belongs.
+
+	Returns ``(position, visiting)``. A row whose component the structure has
+	nothing to say about - an advance instalment, an Additional Salary for a
+	component that is not on the structure - takes ``visiting``, which puts it
+	just above the first row carrying do_not_include_in_total: the employer
+	contributions and markers like Taxable Income.
+
+	That placement is not cosmetic bookkeeping. salary_advance._place_above_statistical
+	already puts an instalment there deliberately, because those trailing rows
+	are not money the employee parts with, and a deduction printed below them
+	reads as if it sits outside the total. Sending unlisted rows to the very end
+	would undo that.
+
+	Cached doc, so a payroll run of two hundred slips reads the structure once.
+	"""
+	rows = frappe.get_cached_doc("Salary Structure", structure).get(parentfield) or []
+	position = {}
+	visiting = None
+	for index, row in enumerate(rows):
+		# First mention wins if a structure lists a component twice.
+		position.setdefault(row.salary_component, index)
+		if visiting is None and (row.do_not_include_in_total or row.get("statistical_component")):
+			# Half a step above that row, so an unlisted component lands there
+			# whatever order the slip happened to build them in.
+			visiting = index - 0.5
+	if visiting is None:
+		visiting = len(rows)
+	return position, visiting

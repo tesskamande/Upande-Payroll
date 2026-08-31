@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_days, flt, getdate
+from frappe.utils import add_days, date_diff, flt, getdate
 
 from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
 	get_notice_days,
@@ -29,6 +29,7 @@ class TerminalDuesSettlement(Document):
 			self._fetch_all_dues()
 
 		self._sync_days_worked_pay()
+		self._sync_notice_days_served()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
 		self._sync_salary_advance_recovery()
@@ -98,6 +99,7 @@ class TerminalDuesSettlement(Document):
 
 		self._fetch_all_dues()
 		self._sync_days_worked_pay()
+		self._sync_notice_days_served()
 		self._sync_notice_pay()
 		self._sync_asset_recovery()
 		self._sync_salary_advance_recovery()
@@ -227,18 +229,27 @@ class TerminalDuesSettlement(Document):
 		days = flt(self.days_worked_in_final_month)
 		amount = round(daily * days, 2)
 
-		if days:
-			description = f"Days Worked Pay - {days} days @ {monthly:,.2f}"
-		else:
-			description = (
-				f"Days Worked Pay - no attendance records found. "
-				f"Edit 'Days Worked in Final Month' above and save. "
-				f"Daily rate: {daily:,.2f}"
+		# No row for nothing. A 0.00 earning is not a due - it prints on the
+		# settlement, adds a line to the journal and tells the employee they
+		# earned nothing for working, when what it actually meant was that
+		# nobody had recorded any attendance yet. That prompt belongs in a
+		# message to whoever is filling the form in, not in the statement the
+		# employee is handed.
+		if not days:
+			frappe.msgprint(
+				_("No attendance found for {0} between {1} and {2}, so there is no "
+				  "Days Worked Pay. Set 'Days Worked in Final Month' and save if they "
+				  "did work. A day is worth {3}.").format(
+					self.employee_name or self.employee,
+					self.payroll_period_start, self.relieving_date,
+					frappe.format_value(daily, {"fieldtype": "Currency"})),
+				title=_("No Days Worked Pay"), indicator="orange",
 			)
+			return
 
 		self.append("earnings", {
 			"earning_type": component,
-			"description": description,
+			"description": f"Days Worked Pay - {days} days @ {daily:,.2f}/day",
 			"amount": amount,
 			"is_taxable": 1,
 			"is_gratuity": 0,
@@ -246,15 +257,39 @@ class TerminalDuesSettlement(Document):
 			"source_document": self.employee,
 		})
 
-	def _fetch_gratuity(self):
-		"""Pull amount from the latest submitted Gratuity record for this employee."""
-		gratuity = frappe.get_all(
-			"Gratuity",
-			filters={"employee": self.employee, "docstatus": 1},
-			fields=["name", "amount", "salary_component"],
+	def _unsettled(self, doctype, fields):
+		"""The latest submitted record of ``doctype`` this settlement should pay.
+
+		Three things have to be true of it: it is submitted, it is marked Pay via
+		Terminal Dues Settlement rather than one of core's own payment routes,
+		and nobody has paid it yet. The last is checked two ways because they can
+		disagree - a status of Paid, and a stamp naming the settlement that paid
+		it. A record already claimed by another settlement is somebody else's.
+		"""
+		rows = frappe.get_all(
+			doctype,
+			filters={
+				"employee": self.employee, "docstatus": 1,
+				"custom_pay_via_terminal_dues": 1,
+				"status": ("!=", "Paid"),
+			},
+			fields=list(fields) + ["custom_terminal_dues_settlement"],
 			order_by="modified desc",
-			limit=1,
 		)
+		return [
+			row for row in rows
+			if row.custom_terminal_dues_settlement in (None, "", self.name)
+		][:1]
+
+	def _fetch_gratuity(self):
+		"""Pull amount from the latest submitted Gratuity record for this employee.
+
+		Only a gratuity marked Pay via Terminal Dues Settlement belongs here. The
+		other two modes are already paying it somewhere else - an Additional
+		Salary on a payslip, or the gratuity's own journal - so picking those up
+		would pay the same gratuity twice.
+		"""
+		gratuity = self._unsettled("Gratuity", ["name", "amount", "salary_component"])
 		if not gratuity or not flt(gratuity[0].amount):
 			return
 
@@ -269,13 +304,20 @@ class TerminalDuesSettlement(Document):
 		})
 
 	def _fetch_leave_pay(self):
-		"""Pull from the latest submitted Leave Encashment record for this employee."""
-		encashments = frappe.get_all(
+		"""Pull from the latest submitted Leave Encashment marked for settlement.
+
+		Only an encashment marked Pay via Terminal Dues Settlement belongs here.
+		Anything else is already being paid by core's own route - an Additional
+		Salary on a payslip, or a Payment Entry - and pulling it in would pay the
+		same leave twice.
+
+		One that has already been settled is left alone for the same reason:
+		_mark_leave_encashment_paid stamps the status and the settlement that
+		paid it, and that stamp is what says the money has gone.
+		"""
+		encashments = self._unsettled(
 			"Leave Encashment",
-			filters={"employee": self.employee, "docstatus": 1},
-			fields=["name", "encashment_days", "encashment_amount", "leave_type"],
-			order_by="modified desc",
-			limit=1,
+			["name", "encashment_days", "encashment_amount", "leave_type"],
 		)
 		if not encashments:
 			return
@@ -302,6 +344,32 @@ class TerminalDuesSettlement(Document):
 	# Auto-rows: notice pay and PAYE
 	# ------------------------------------------------------------------
 
+	def _sync_notice_days_served(self):
+		"""Work out how much notice the employee actually served.
+
+		The field promises it works itself out from the resignation and leaving
+		dates, and in the browser it does. But resignation_letter_date is
+		fetched from the Employee, and Frappe fills a fetch_from field on the
+		server during validate - which raises no client change event, so the
+		handler watching that field never ran. The figure stayed at nought and
+		the settlement charged the whole notice period: sixty days unserved for
+		somebody who had already worked a month of it.
+
+		Deriving it here rather than only in the browser also covers a
+		settlement raised from a script or the API, where no client code runs.
+		"""
+		# Never been set, so there is nothing of anybody's to overwrite. Once it
+		# carries a figure - derived here, worked out in the browser, or typed in
+		# because the employer gave the notice and there is no letter to measure
+		# from - it is left alone. Recomputing on every save would throw away an
+		# HR correction the moment it was saved.
+		if self.notice_days_served is not None:
+			return
+		if not (self.resignation_letter_date and self.relieving_date):
+			return
+		# Notice runs from the day the letter is given to the day they leave.
+		self.notice_days_served = max(0.0, flt(date_diff(self.relieving_date, self.resignation_letter_date)))
+
 	def _sync_notice_pay(self):
 		"""Remove stale notice rows and re-add from current notice_direction/days."""
 		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
@@ -317,14 +385,10 @@ class TerminalDuesSettlement(Document):
 			if r.deduction_type != deduction_component
 		]
 
-		direction = (self.notice_direction or "").strip()
-		if not direction:
-			return
-
 		# Required days are always derived from Company Payroll Settings' Notice
 		# Period Rules based on tenure - not stored or editable on the document
-		# itself. What gets paid/deducted is only the shortfall against however
-		# much notice was actually served (Employment Act §38).
+		# itself. What gets paid or charged is only the shortfall against however
+		# much notice was actually served.
 		required_days = flt(get_notice_days(self.company, self.years_worked))
 		if not required_days:
 			return
@@ -332,6 +396,30 @@ class TerminalDuesSettlement(Document):
 		served_days = flt(self.notice_days_served)
 		days = max(0.0, required_days - served_days)
 		if not days:
+			return
+
+		direction = (self.notice_direction or "").strip()
+		if not direction:
+			# Which way a shortfall moves is not something the dates can settle.
+			# The Employment Act turns it on who cut the notice short, and the
+			# document cannot know that: section 38 has the employer pay where it
+			# waived the balance of notice the employee had properly given,
+			# section 36 has the employee compensate the employer where they left
+			# short of their own accord, and section 38 lets both sides agree that
+			# neither owes anything. Guessing from the resignation date alone
+			# picks a side and quietly moves real money, so this asks instead.
+			frappe.msgprint(
+				_("{0} served {1} of {2} notice days, leaving {3}. Nothing is being paid "
+				  "or charged for them until Notice Direction is set.<br><br>"
+				  "<b>Payable to Employee</b> if the employer waived the balance of the "
+				  "notice (Employment Act s.38).<br>"
+				  "<b>Deduction from Employee</b> if they left short of their own accord "
+				  "(s.36).<br>"
+				  "Leave it blank if both sides agreed neither is owed.").format(
+					self.employee_name or self.employee,
+					f"{served_days:g}", f"{required_days:g}", f"{days:g}"),
+				title=_("Notice Not Fully Served"), indicator="orange",
+			)
 			return
 
 		monthly, daily = self._get_daily_rate()
@@ -348,7 +436,7 @@ class TerminalDuesSettlement(Document):
 				"earning_type": earning_component,
 				"description": (
 					f"Pay in Lieu of Notice - {days:.1f} of {required_days:.0f} days "
-					f"unserved @ {monthly:,.2f}"
+					f"unserved @ {daily:,.2f}/day"
 				),
 				"amount": amount,
 				"is_taxable": 1,
@@ -365,7 +453,7 @@ class TerminalDuesSettlement(Document):
 				"deduction_type": deduction_component,
 				"description": (
 					f"Pay Deduction in Lieu of Notice - {days:.1f} of {required_days:.0f} days "
-					f"unserved @ {monthly:,.2f}"
+					f"unserved @ {daily:,.2f}/day"
 				),
 				"amount": amount,
 				"source_doctype": "",
@@ -538,10 +626,10 @@ class TerminalDuesSettlement(Document):
 		]
 
 		taxable = self._statutory_base()
-		if not taxable:
-			return
+		on_earnings = self._calc_paye(taxable) if taxable else 0.0
+		on_gratuity = self._gratuity_paye()
 
-		paye = self._calc_paye(taxable)
+		paye = flt(on_earnings + on_gratuity, 2)
 		if paye <= 0:
 			return
 
@@ -550,13 +638,41 @@ class TerminalDuesSettlement(Document):
 				"Set PAYE Component in Company Payroll Settings for {0}."
 			).format(self.company))
 
+		# One row, because it is one tax to one account. The description splits
+		# it, since the two halves are worked out on different bases and an
+		# employee querying the figure has to be able to see both.
+		if on_gratuity and on_earnings:
+			description = (
+				f"PAYE on Gross Earnings {taxable:,.2f} ({on_earnings:,.2f}) "
+				f"plus PAYE on Gratuity ({on_gratuity:,.2f})"
+			)
+		elif on_gratuity:
+			description = f"PAYE on Gratuity ({on_gratuity:,.2f})"
+		else:
+			description = f"PAYE on Gross Earnings {taxable:,.2f}"
+
 		self.append("deductions", {
 			"deduction_type": paye_component,
-			"description": f"PAYE on Gross Earnings {taxable:,.2f}",
+			"description": description,
 			"amount": paye,
 			"source_doctype": "Income Tax Slab",
 			"source_document": "",
 		})
+
+	def _gratuity_paye(self):
+		"""PAYE the Gratuity record worked out for itself.
+
+		Gratuity is taxed by spreading it back over the years it was earned in
+		and assessing each year on the slab of its own time, which is why
+		_statutory_base leaves it out of this settlement's tax base. That figure
+		still has to reach the settlement: without it the gratuity was excluded
+		from the base here and taxed nowhere, and went out untaxed.
+		"""
+		total = 0.0
+		for row in (self.earnings or []):
+			if row.is_gratuity and row.source_document:
+				total += flt(frappe.db.get_value("Gratuity", row.source_document, "custom_paye"))
+		return flt(total, 2)
 
 	def _calc_paye(self, taxable_income):
 		"""PAYE on the terminal earnings, from Kenya Payroll Settings.
@@ -666,10 +782,17 @@ class TerminalDuesSettlement(Document):
 		for row in (self.earnings or []):
 			if row.is_gratuity and row.source_document:
 				if frappe.db.exists("Gratuity", row.source_document):
-					frappe.db.set_value("Gratuity", row.source_document, "status", "Paid")
-					frappe.db.set_value(
-						"Gratuity", row.source_document, "custom_terminal_dues_settlement", self.name
-					)
+					# paid_amount goes in with the status, for the same reason it does
+					# on Leave Encashment: core's set_status() recomputes status from
+					# amount against paid_amount on every validate, so a bare
+					# status="Paid" reverts to "Unpaid" the next time anybody saves the
+					# gratuity - and an Unpaid gratuity is one another settlement will
+					# pick up and pay a second time.
+					frappe.db.set_value("Gratuity", row.source_document, {
+						"status": "Paid",
+						"paid_amount": row.amount,
+						"custom_terminal_dues_settlement": self.name,
+					})
 
 	def _mark_leave_encashment_paid(self):
 		for row in (self.earnings or []):
@@ -832,8 +955,13 @@ class TerminalDuesSettlement(Document):
 		for row in (self.earnings or []):
 			if row.is_gratuity and row.source_document:
 				if frappe.db.exists("Gratuity", row.source_document):
-					frappe.db.set_value("Gratuity", row.source_document, "status", "Unpaid")
-					frappe.db.set_value("Gratuity", row.source_document, "custom_terminal_dues_settlement", None)
+					# paid_amount is cleared with the status, or core would put the
+					# status straight back to Paid on the next save.
+					frappe.db.set_value("Gratuity", row.source_document, {
+						"status": "Unpaid",
+						"paid_amount": 0,
+						"custom_terminal_dues_settlement": None,
+					})
 
 	def _revert_leave_encashment(self):
 		for row in (self.earnings or []):

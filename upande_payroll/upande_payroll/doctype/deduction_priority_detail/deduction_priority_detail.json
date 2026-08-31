@@ -10,11 +10,12 @@
   "deduction_group",
   "group_priority",
   "override_priority",
+  "effective_tie_breaker",
   "on_shortfall"
  ],
  "fields": [
   {
-   "columns": 3,
+   "columns": 2,
    "description": "Leave empty and set Loan Product instead to rank a loan.",
    "fieldname": "salary_component",
    "fieldtype": "Link",
@@ -52,6 +53,15 @@
    "in_list_view": 1,
    "label": "Override Pri",
    "non_negative": 1
+  },
+  {
+   "columns": 2,
+   "description": "Which tie breaker will actually order this row's rank. A rank belongs to the group whose own priority is that number; a row placed there by an Override Pri adopts that group's method.",
+   "fieldname": "effective_tie_breaker",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Effective Tie Breaker",
+   "read_only": 1
   },
   {
    "columns": 1,

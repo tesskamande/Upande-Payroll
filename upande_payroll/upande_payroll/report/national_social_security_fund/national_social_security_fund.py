@@ -8,6 +8,9 @@ from upande_payroll.statutory_reports import build
 SPEC = {
 	"title": _("National Social Security Fund"),
 	"employee_keys": ("nssf_tier1_employee", "nssf_tier2_employee"),
+	# Also take anything this site calls NSSF, so a company running one flat
+	# component instead of the two tiers still files a return.
+	"discover": "NSSF",
 	"columns": [
 		("employee_number", _("Payroll No"), "Data", 130),
 		("last_name", _("Surname"), "Data", 150),

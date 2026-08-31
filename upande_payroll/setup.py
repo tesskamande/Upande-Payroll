@@ -136,6 +136,15 @@ STATUTORY_FIELDS = {
 		{"fieldname": "advanced_employee_filters", "fieldtype": "Small Text",
 		 "label": "Advanced Employee Filters", "hidden": 1, "read_only": 1,
 		 "insert_after": "filter_list"},
+		# Task workers are paid entirely through Additional Salary, so a run for
+		# them should pull the ones who actually earned something rather than
+		# everybody who holds a salary structure.
+		{"fieldname": "custom_only_with_additional_salary", "fieldtype": "Check",
+		 "label": "Only Employees With Additional Salary",
+		 "insert_after": "advanced_employee_filters",
+		 "description": "Pull only employees who have an Additional Salary "
+						"falling in this period. Everyone else is left out of "
+						"the run rather than given an empty payslip."},
 	],
 	"Salary Component": [
 		{"fieldname": "p9a_tax_deduction_card_type", "fieldtype": "Select",

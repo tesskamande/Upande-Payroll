@@ -11,7 +11,9 @@
   "current_basic_pay",
   "percentage_increase",
   "increase_amount",
-  "new_basic_pay"
+  "new_basic_pay",
+  "promotes_to",
+  "after_months"
  ],
  "fields": [
   {
@@ -47,6 +49,19 @@
    "in_list_view": 1,
    "label": "New Basic Pay",
    "read_only": 1
+  },
+  {
+   "fieldname": "promotes_to",
+   "fieldtype": "Select",
+   "label": "Promotes To",
+   "options": "\nUnskilled\nSemi-skilled\nSecurity\nTractor Driver\nClerk\nSmall Truck Driver\nLarge Truck Driver\nArtisan",
+   "in_list_view": 0
+  },
+  {
+   "fieldname": "after_months",
+   "fieldtype": "Int",
+   "label": "After Months",
+   "depends_on": "eval:doc.promotes_to"
   }
  ],
  "grid_page_length": 50,

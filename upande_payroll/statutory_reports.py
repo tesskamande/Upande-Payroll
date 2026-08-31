@@ -84,10 +84,46 @@ def _components(filters, spec):
 	from upande_payroll.kenya_statutory_calculator import get_statutory_components
 
 	comp = get_statutory_components()
-	return (
-		{comp[k] for k in spec.get("employee_keys", ()) if comp.get(k)},
-		{comp[k] for k in spec.get("employer_keys", ()) if comp.get(k)},
-	)
+	employee = {comp[k] for k in spec.get("employee_keys", ()) if comp.get(k)}
+	employer = {comp[k] for k in spec.get("employer_keys", ()) if comp.get(k)}
+
+	keyword = spec.get("discover")
+	if keyword:
+		found_employee, found_employer = _discover(keyword)
+		employee |= found_employee
+		employer |= found_employer
+
+	return employee, employer
+
+
+def _discover(keyword):
+	"""Components this site runs the levy under, found by name.
+
+	The map ships the names the calculator writes to, and a site that keeps them
+	needs nothing else. But a levy can be run as one component where the app
+	splits it - a single "Employee NSSF" instead of Tier 1 and Tier 2 - and then
+	the map matches nothing. The return does not come back wrong, it comes back
+	empty, which is worse: a blank statutory return looks like nobody
+	contributed rather than like a misconfiguration.
+
+	So any deduction component whose name mentions the levy counts too, sorted
+	by whether it is flagged as an employer contribution. A site on the shipped
+	names gets the same answer either way, because those names mention it as
+	well - this only ever adds.
+	"""
+	employee, employer = set(), set()
+	for row in frappe.get_all(
+		"Salary Component",
+		filters={"type": "Deduction"},
+		fields=["name", "custom_is_employer_contribution"],
+	):
+		if keyword.lower() not in (row.name or "").lower():
+			continue
+		if row.custom_is_employer_contribution:
+			employer.add(row.name)
+		else:
+			employee.add(row.name)
+	return employee, employer
 
 
 def _slips(filters, sources):

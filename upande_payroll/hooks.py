@@ -18,6 +18,7 @@ fixtures = [
 			["dt", "=", "Employee"],
 			["fieldname", "in", [
 				"job_category",
+				"custom_job_category_since",
 				"basic_pay",
 				"custom_is_secondary_employment",
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
@@ -67,6 +68,10 @@ fixtures = [
 		"prefix": "payroll_entry",
 		"filters": [["dt", "=", "Payroll Entry"], ["fieldname", "in", [
 			"advanced_filters_section", "filter_list", "advanced_employee_filters",
+			# Read by patch_filter_conditions(). Left out of here it existed on
+			# the site it was made on and nowhere else, so on a fresh install the
+			# checkbox was absent and the filter quietly matched everybody.
+			"custom_only_with_additional_salary",
 		]]],
 	},
 	{
@@ -287,6 +292,9 @@ doc_events = {
 			"upande_payroll.salary_advance.apply_salary_advances",
 			"upande_payroll.salary_slip_utils.merge_duplicate_components",
 			"upande_payroll.deduction_cap.apply_deduction_cap",
+			# Last: everything that adds a row has finished, so this is the only
+			# point where the payslip's rows can be lined up with the structure.
+			"upande_payroll.salary_slip_utils.sort_components_by_structure",
 		],
 		# The ledger only moves once the slip is real. validate runs on every
 		# save, including drafts that may never be submitted. Advances are
@@ -305,6 +313,14 @@ doc_events = {
 
 # Scheduled Tasks
 # ---------------
+
+scheduler_events = {
+	# Service time is the only input, so the only thing that changes overnight
+	# is whether somebody has crossed their threshold.
+	"daily": [
+		"upande_payroll.cba_utils.run_job_category_progressions",
+	],
+}
 
 # scheduler_events = {
 # 	"all": [
@@ -340,6 +356,10 @@ extend_doctype_class = {
 	"Leave Encashment": "upande_payroll.leave_encashment_utils.LeaveEncashmentMixin",
 	"Overtime Slip": "upande_payroll.overtime_utils.OvertimeSlipMixin",
 	"Payroll Entry": "upande_payroll.payroll_entry_utils.PayrollEntryMixin",
+	# Core reads the payment mode as one boolean and knows nothing of the
+	# Terminal Dues Settlement, so submit and cancel both reach for accounts
+	# that mode does not use.
+	"Gratuity": "upande_payroll.gratuity_utils.GratuityMixin",
 }
 
 # Regional overrides for HRMS's own apply_regional_deductions hook point -

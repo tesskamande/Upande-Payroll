@@ -49,6 +49,22 @@ def check(name, got, want, tol=0.01):
 
 # ---------------------------------------------------------------- helpers
 
+def refuses(name, fn):
+    """Passes only when the operation is rejected.
+
+    Wrapped in a savepoint: a throw part way through a save can leave the
+    transaction holding half a document, and the next check would then be
+    testing the wreckage.
+    """
+    frappe.db.savepoint("cap_check")
+    try:
+        fn()
+        RESULTS.append((False, name, "accepted", "rejected"))
+    except Exception:
+        frappe.db.rollback(save_point="cap_check")
+        RESULTS.append((True, name, "rejected", "rejected"))
+
+
 def comp(name, abbr, ctype="Deduction"):
     if not frappe.db.exists("Salary Component", name):
         frappe.get_doc({
@@ -59,7 +75,7 @@ def comp(name, abbr, ctype="Deduction"):
     return name
 
 
-def group(gname, priority, reducible, shortfall):
+def group(gname, priority, reducible, shortfall, tie=None):
     key = f"{COMPANY}-{gname}"
     g = (frappe.get_doc("Deduction Group", key) if frappe.db.exists("Deduction Group", key)
          else frappe.get_doc({"doctype": "Deduction Group", "company": COMPANY,
@@ -67,6 +83,8 @@ def group(gname, priority, reducible, shortfall):
     g.priority = priority
     g.reducible = reducible
     g.on_shortfall = shortfall
+    if tie:
+        g.tie_breaker = tie
     g.save(ignore_permissions=True)
     return key
 
@@ -468,6 +486,132 @@ def run():
     dp = frappe.get_doc("Deduction Priority", COMPANY)
     row = next(r for r in dp.deductions if r.salary_component == sacco)
     check("K7 an override matching the group is cleared", cint(row.override_priority), 0)
+
+    # ---- L. one tie breaker per band, chosen by which group owns the rank ----
+    # A rank belongs to the group whose own priority is that number. A row put
+    # there by an Override Pri is visiting, and adopts the host's method - so an
+    # override into another group's rank is allowed, and the cut order is defined
+    # rather than decided by whichever row sorted first.
+    from upande_payroll.deduction_cap import _priority_rules, _reduce
+
+    HOST = group("L Host", 12, 1, "Carry Forward", tie="As Listed")
+    GUEST = group("L Guest", 19, 1, "Carry Forward", tie="Oldest Loan First")
+
+    dp = priority("Cash Wages", {union: HOST, adv: HOST, sacco: GUEST},
+                  overrides={sacco: 12})
+    # It saved - which is the point, since this configuration used to be
+    # refused outright - and the override survived the save.
+    stored = frappe.get_doc("Deduction Priority", COMPANY)
+    visitor = next((r for r in stored.deductions if r.salary_component == sacco), None)
+    check("L1 an override into another group's rank is accepted",
+          cint(visitor.override_priority) if visitor else 0, 12)
+
+    rules = _priority_rules(dp)
+    check("L2 the visitor's effective rank is the host's", rules[sacco].priority, 12.0)
+    check("L3 while its own group's rank is unchanged",
+          rules[sacco].get("group_priority"), 19.0)
+
+    claims = [frappe._dict({"salary_component": c, "amount": 1000.0})
+              for c in (union, adv, sacco)]
+    _reduce(claims, rules, 500.0)
+    taken = {c.salary_component: 1000.0 - c.amount for c in claims}
+    # As Listed protects what is listed first, so the cut lands on the last row -
+    # the visitor. Under its own Oldest Loan First it would have been cut last.
+    check("L4 the band used the host's method, not the visitor's",
+          taken[sacco], 500.0)
+    check("L5 leaving the host's own rows whole",
+          taken[union] + taken[adv], 0.0)
+
+    # Two groups each claiming the same rank while disagreeing cannot be settled:
+    # both own it, so neither yields.
+    A = group("L Native A", 14, 1, "Carry Forward", tie="Pro-rata")
+    B = group("L Native B", 14, 1, "Carry Forward", tie="Largest First")
+    refuses("L6 two groups natively on one rank, different methods",
+            lambda: priority("Cash Wages", {union: A, adv: B}))
+
+    # A rank nobody owns, reached only by overrides that disagree, cannot be
+    # ordered at all - and is refused when the config is saved rather than weeks
+    # later when a cut first needs a method.
+    C = group("L Visitor A", 16, 1, "Carry Forward", tie="Pro-rata")
+    D = group("L Visitor B", 17, 1, "Carry Forward", tie="Largest First")
+    refuses("L7 a visitors-only rank that disagrees is refused at save",
+            lambda: priority("Cash Wages", {union: C, adv: D},
+                             overrides={union: 15, adv: 15}))
+
+    # ---- M. the effective tie breaker is shown on the row -----------------
+    # A row can now follow a method its own group does not carry, so the form
+    # says which one will apply, and names the group it is borrowed from.
+    dp = priority("Cash Wages", {union: HOST, adv: HOST, sacco: GUEST},
+                  overrides={sacco: 12})
+    rows = {r.salary_component: r for r in dp.deductions}
+    check("M1 a row on its own group's rank shows its own method",
+          rows[union].effective_tie_breaker, "As Listed")
+    check("M2 a visitor shows the host's method, and its source",
+          rows[sacco].effective_tie_breaker, "As Listed (from L Host)")
+    check("M3 every row is filled in",
+          all(r.effective_tie_breaker for r in dp.deductions), True)
+
+    # Where nobody owns the rank but the visitors agree, there is no source to
+    # name - they are simply following the only method present.
+    E = group("M Agree A", 22, 1, "Carry Forward", tie="Largest First")
+    F = group("M Agree B", 23, 1, "Carry Forward", tie="Largest First")
+    dp = priority("Cash Wages", {union: E, adv: F}, overrides={union: 21, adv: 21})
+    check("M4 agreed visitors show the method unattributed",
+          {r.effective_tie_breaker for r in dp.deductions}, {"Largest First"})
+
+    # ---- N. a visitor band, proved on a real payslip ---------------------
+    # L and M check the reduction and the form in isolation. This drives the
+    # whole thing: two deductions in different groups, one of them overridden
+    # into the other's rank, on a slip where the two thirds rule has to cut.
+    # Which one loses money is the only honest test that the host's method won.
+    hostcomp = comp("N Host Deduction", "NHD")
+    guestcomp = comp("N Guest Deduction", "NGD")
+
+    N_HOST = group("N Host", 41, 1, "Carry Forward", tie="As Listed")
+    N_GUEST = group("N Guest", 49, 1, "Carry Forward", tie="Oldest Loan First")
+
+    S_BAND = structure("T9 Band", [basic],
+                       [{"salary_component": hostcomp, "amount": 12000,
+                         "depends_on_payment_days": 0},
+                        {"salary_component": guestcomp, "amount": 12000,
+                         "depends_on_payment_days": 0}])
+    e13 = employee("SUITE Visitor Band")
+    assign(e13, S_BAND, 30000)
+
+    # 30,000 wages -> 20,000 permitted against 24,000 claimed, so 4,000 must go.
+    # Both rows share rank 41: the host owns it, the guest is visiting.
+    priority("Cash Wages", {hostcomp: N_HOST, guestcomp: N_GUEST},
+             overrides={guestcomp: 41})
+    s = slip(e13, S_BAND, "2026-11-01", "2026-11-30")
+
+    # As Listed protects what is listed first, so the cut lands on the last row
+    # - the visitor. Under its own Oldest Loan First neither row is a loan, the
+    # sort is stable, and the host would have been cut first instead.
+    check("N1 the visitor bore the whole cut", amt(s, guestcomp), 8000)
+    check("N2 the host's own row was left whole", amt(s, hostcomp), 12000)
+    check("N3 and the slip is capped, not breached",
+          flt(s.custom_unreducible_excess), 0.0)
+
+    # Change only the HOST's method and the same rows must cut differently -
+    # which is what proves the band follows the host rather than either row's
+    # own group. Pro-rata shares the 4,000 between two equal claims.
+    group("N Host", 41, 1, "Carry Forward", tie="Pro-rata")
+    priority("Cash Wages", {hostcomp: N_HOST, guestcomp: N_GUEST},
+             overrides={guestcomp: 41})
+    s = slip(e13, S_BAND, "2026-11-01", "2026-11-30")
+    check("N4 the host's new method now governs the band (host share)",
+          amt(s, hostcomp), 10000)
+    check("N5 and the visitor takes the same share",
+          amt(s, guestcomp), 10000)
+
+    # The visitor's own group never got a say: its method changed nothing
+    # before, and changing it now still changes nothing.
+    group("N Guest", 49, 1, "Carry Forward", tie="As Listed")
+    priority("Cash Wages", {hostcomp: N_HOST, guestcomp: N_GUEST},
+             overrides={guestcomp: 41})
+    s = slip(e13, S_BAND, "2026-11-01", "2026-11-30")
+    check("N6 changing the VISITOR's own method changes nothing",
+          amt(s, hostcomp), 10000)
 
     # ---- report ---------------------------------------------------------
     passed = sum(1 for r in RESULTS if r[0])

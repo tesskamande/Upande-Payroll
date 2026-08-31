@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint
 
+from upande_payroll.deduction_cap import band_tie_breaker
+
 
 class DeductionPriority(Document):
 	def validate(self):
@@ -16,6 +18,7 @@ class DeductionPriority(Document):
 		self.validate_statutory_not_reducible()
 		self.tidy_priority_overrides()
 		self.validate_tie_breaker_per_rank()
+		self.set_effective_tie_breakers()
 
 	def tidy_priority_overrides(self):
 		"""An override that matches the group is not an override.
@@ -41,36 +44,42 @@ class DeductionPriority(Document):
 				row.override_priority = 0
 
 	def validate_tie_breaker_per_rank(self):
-		"""One tie breaker per rank.
+		"""Two groups may share a rank, but not disagree about it.
 
-		When several deductions rank equally, the reduction reads the tie breaker
-		off the first of them - so a rank containing two groups that disagree is
-		decided by whichever row happens to sort first, which is row order in a
-		grid. Overrides make that easy to walk into, but it is reachable without
-		them too: two groups can simply be given the same priority.
+		When deductions rank equally, one tie breaker orders the whole band. A
+		row placed there by an Override Pri is a visitor and adopts the method of
+		the group that owns the rank, so an override needs no permission from
+		this check. What cannot be resolved is two groups each declaring the same
+		priority while breaking ties differently: both own the rank, neither
+		yields, and picking one would decide silently whose wages are cut.
 
-		Refused rather than resolved, because there is no honest way to pick. The
-		fix is the company's to make: align the two groups' tie breakers, or give
-		one of them a rank of its own.
+		The remaining case - a rank made only of visitors who disagree, with no
+		group of its own - is caught at the point of use, where the members are
+		known.
 		"""
-		by_rank = {}
+		owners = {}
 		for row in self.deductions:
 			group = row.deduction_group
 			if not group:
 				continue
-			rank = cint(row.override_priority) or cint(row.group_priority)
+			rank = cint(row.group_priority)
+			# Only groups sitting at their own rank own it; overridden rows are
+			# visiting somebody else's and have no say in how it is ordered.
+			if cint(row.override_priority):
+				continue
 			method = frappe.db.get_value("Deduction Group", group, "tie_breaker")
-			seen = by_rank.setdefault(rank, {})
+			seen = owners.setdefault(rank, {})
 			seen.setdefault(method, (group, row.idx))
 			if len(seen) > 1:
 				(first_group, first_idx), (other_group, other_idx) = list(seen.values())[:2]
 				first_method, other_method = list(seen.keys())[:2]
 				frappe.throw(
 					_(
-						"Rank {0} holds two groups that break ties differently: {1} "
-						"uses {2} (row {3}) and {4} uses {5} (row {6}). Whichever row "
-						"sorts first would decide who bears the cut. Match the two "
-						"tie breakers, or move one group to a rank of its own."
+						"Rank {0} is claimed by two groups that break ties "
+						"differently: {1} uses {2} (row {3}) and {4} uses {5} "
+						"(row {6}). Both own the rank, so neither can decide who "
+						"bears a cut. Match the two tie breakers, or move one "
+						"group to a rank of its own."
 					).format(
 						rank,
 						frappe.bold(first_group), frappe.bold(first_method or "Pro-rata"), first_idx,
@@ -78,6 +87,68 @@ class DeductionPriority(Document):
 					),
 					title=_("Conflicting Tie Breakers"),
 				)
+
+	def set_effective_tie_breakers(self):
+		"""Say on each row which tie breaker will actually order its rank.
+
+		Once a row can be overridden into another group's rank, its own group's
+		method may not be the one that decides who bears a cut - and nothing on
+		the form said so. This fills that in, naming the group the method is
+		borrowed from when it is not the row's own.
+
+		It reads the same helper the reduction reads, so the column cannot
+		promise one thing and payroll do another. Doing it here also brings the
+		one unresolvable case forward: a rank nobody owns whose visitors
+		disagree used to surface weeks later, mid payroll, because that is when
+		a cut first needed a method.
+		"""
+		groups = {}
+		for row in self.deductions:
+			if row.deduction_group and row.deduction_group not in groups:
+				groups[row.deduction_group] = frappe.db.get_value(
+					"Deduction Group", row.deduction_group,
+					["priority", "tie_breaker", "group_name"], as_dict=True
+				) or frappe._dict()
+
+		bands = {}
+		for row in self.deductions:
+			if not row.deduction_group:
+				continue
+			group = groups[row.deduction_group]
+			rank = cint(row.override_priority) or cint(group.priority)
+			bands.setdefault(rank, []).append(row)
+
+		for rank, rows in bands.items():
+			entries = [
+				(
+					cint(groups[r.deduction_group].priority),
+					groups[r.deduction_group].tie_breaker or "Pro-rata",
+					r.deduction_group,
+				)
+				for r in rows
+			]
+			method, owner = band_tie_breaker(rank, entries)
+
+			if method is None:
+				frappe.throw(
+					_(
+						"Rank {0} is reached only by Override Pri, from groups that "
+						"break ties differently ({1}). With no group at rank {0} to "
+						"settle it, nothing decides who bears a cut. Give one of them "
+						"a group at rank {0}, or match their tie breakers."
+					).format(rank, ", ".join(sorted(str(m) for m in owner))),
+					title=_("Conflicting Tie Breakers"),
+				)
+
+			for row in rows:
+				# Named only when borrowed. A row following its own group's method
+				# needs no explanation; one following somebody else's does.
+				if owner and owner != row.deduction_group:
+					row.effective_tie_breaker = "{0} (from {1})".format(
+						method, groups[owner].group_name or owner
+					)
+				else:
+					row.effective_tie_breaker = method
 
 	def validate_one_thing_per_row(self):
 		"""A row ranks a salary component or a loan product, never both.

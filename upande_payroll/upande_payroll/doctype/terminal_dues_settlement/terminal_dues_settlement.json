@@ -130,7 +130,7 @@
    "reqd": 1
   },
   {
-   "description": "Whether you're paying the employee for notice, or charging them for it.",
+   "description": "Only matters when notice was not fully served. Payable to Employee where the employer waived the balance (s.38); Deduction from Employee where the employee left short of their own accord (s.36); blank where both sides agreed neither is owed, or the balance was covered by leave.",
    "fieldname": "notice_direction",
    "fieldtype": "Select",
    "label": "Notice Direction",
@@ -138,7 +138,7 @@
   },
   {
    "depends_on": "eval:doc.notice_direction",
-   "description": "How many days of notice they actually worked. Works itself out from the resignation and leaving dates if both are filled in. Only the days they didn't work get paid or charged.",
+   "description": "Days of the required notice the employee actually worked. Filled in from the resignation letter date and the leaving date when there is a letter; type it in when the employer gave the notice, or when notice ran from some other date. Leave it at nought if no notice was served at all. Only the balance of the required notice is settled, and Notice Direction decides which way it goes.",
    "fieldname": "notice_days_served",
    "fieldtype": "Float",
    "label": "Notice Days Served",

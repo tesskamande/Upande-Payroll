@@ -37,6 +37,7 @@
   "overtime_department_working_hours",
   "terminal_dues_section",
   "enable_terminal_dues_calculation",
+  "leaver_payroll_policy",
   "terminal_dues_basic_pay_component",
   "terminal_dues_days_worked_component",
   "terminal_dues_divisor",
@@ -98,7 +99,7 @@
   },
   {
    "default": "0",
-   "description": "Pay people a set amount once a year when they take a decent stretch of leave.",
+   "description": "Pay people a set amount once per leave period when they have taken a decent stretch of leave.",
    "fieldname": "enable_leave_travelling_allowance",
    "fieldtype": "Check",
    "label": "Enable Leave Travelling Allowance"
@@ -132,7 +133,7 @@
   },
   {
    "depends_on": "eval:doc.enable_leave_travelling_allowance",
-   "description": "How long one leave application has to be before it counts.",
+   "description": "Total qualifying leave days in one leave allocation period. Several applications in the same period add up, and the allowance falls due on the one that reaches this figure.",
    "fieldname": "lta_minimum_days",
    "fieldtype": "Float",
    "label": "Minimum Leave Days",
@@ -217,6 +218,13 @@
    "fieldname": "enable_terminal_dues_calculation",
    "fieldtype": "Check",
    "label": "Enable Terminal Dues Calculation"
+  },
+  {
+   "fieldname": "leaver_payroll_policy",
+   "fieldtype": "Select",
+   "label": "Employees Who Leave During the Period",
+   "options": "Include in Payroll\nExclude from Payroll",
+   "default": "Include in Payroll"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",

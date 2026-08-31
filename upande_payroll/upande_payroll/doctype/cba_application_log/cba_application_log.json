@@ -10,6 +10,8 @@
   "cba",
   "employee",
   "employee_name",
+  "event",
+  "from_job_category",
   "job_category",
   "column_break_rate",
   "company",
@@ -49,6 +51,19 @@
    "in_list_view": 1,
    "label": "Employee Name",
    "read_only": 1
+  },
+  {
+   "fieldname": "event",
+   "fieldtype": "Select",
+   "label": "Event",
+   "options": "Pay Increase\nPromotion",
+   "default": "Pay Increase"
+  },
+  {
+   "fieldname": "from_job_category",
+   "fieldtype": "Data",
+   "label": "From Job Category",
+   "depends_on": "eval:doc.event=='Promotion'"
   },
   {
    "description": "Stored as text, not a link, so a category later renamed or removed from the pay table does not rewrite what was actually paid.",

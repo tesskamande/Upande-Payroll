@@ -231,6 +231,9 @@ def _priority_rules(config):
 		rules[key] = frappe._dict({
 			"group": group.name,
 			"priority": flt(row.override_priority or group.priority),
+			# The group's own rank, kept beside the effective one so a band can
+			# tell the group that owns it from the rows merely visiting.
+			"group_priority": flt(group.priority),
 			"reducible": bool(group.reducible),
 			"on_shortfall": group.on_shortfall or "Carry Forward",
 			"tie_breaker": group.tie_breaker or "Pro-rata",
@@ -441,7 +444,7 @@ def _reduce(rows, rules, excess):
 			excess = flt(excess - tier_total, 2)
 			continue
 
-		excess = _share_the_cut(members, rules, excess, tier_total)
+		excess = _share_the_cut(members, rules, excess, tier_total, priority)
 
 	return excess
 
@@ -605,7 +608,68 @@ def _apply_loan_cuts(doc, loan_rows):
 	doc.custom_total_actual_repayment = collected
 
 
-def _share_the_cut(members, rules, excess, tier_total):
+def band_tie_breaker(rank, entries):
+	"""Which tie breaker orders a band, and which group it comes from.
+
+	A rank belongs to the group whose own priority is that number. Rows sitting
+	there on an override are visiting, and adopt the host's method - which is
+	the only way a band can have one answer when its members come from groups
+	that break ties differently.
+
+	It used to be read off whichever member sorted first, which meant row order
+	in a grid decided who bore a cut. That is why an override into another
+	group's rank was refused outright; it no longer needs to be.
+
+	Only the tie breaker is taken from the host. reducible, on_shortfall and
+	catch_up_order stay with each row's own group: whether a deduction may be
+	trimmed at all, and what happens to what it could not take, belong to the
+	deduction rather than to the company it keeps.
+
+	``entries`` is one ``(group_priority, tie_breaker, group)`` per row in the
+	band. Returns ``(method, owning group)``, the group being None when nobody
+	owns the rank and the visitors simply agree - or ``(None, {methods})`` when
+	they do not, which the caller reports in whatever terms suit it. Shared with
+	the Deduction Priority form so the column it shows and the cut it predicts
+	cannot drift apart.
+	"""
+	native = [e for e in entries if flt(e[0]) == flt(rank)]
+	if native:
+		return native[0][1], native[0][2]
+
+	# A band of visitors only - nobody owns this rank. They can still be
+	# ordered if they agree; if they do not, there is no honest way to choose,
+	# and guessing would decide silently whose wages are cut.
+	methods = {e[1] for e in entries}
+	if len(methods) == 1:
+		return next(iter(methods)), None
+	return None, methods
+
+
+def _band_method(rank, members, rules):
+	"""The tie breaker for a band being cut, or a refusal if it has none."""
+	entries = [
+		(
+			rules[m.salary_component].get("group_priority"),
+			rules[m.salary_component].tie_breaker,
+			rules[m.salary_component].group,
+		)
+		for m in members
+	]
+	method, owner = band_tie_breaker(rank, entries)
+	if method:
+		return method
+
+	frappe.throw(
+		_(
+			"Rank {0} holds deductions from groups that break ties differently "
+			"({1}), and no group has that rank of its own to settle it. Give one "
+			"of them a group at rank {0}, or match their tie breakers."
+		).format(int(flt(rank)), ", ".join(sorted(str(m) for m in owner))),
+		title=_("Conflicting Tie Breakers"),
+	)
+
+
+def _share_the_cut(members, rules, excess, tier_total, rank=None):
 	"""Split a partial cut between deductions that rank equally.
 
 	Only reached when the tier can absorb the whole excess, so this always
@@ -623,7 +687,8 @@ def _share_the_cut(members, rules, excess, tier_total):
 			excess = flt(excess - cut, 2)
 		return excess
 
-	method = rules[members[0].salary_component].tie_breaker
+	method = _band_method(rank, members, rules) if rank is not None \
+		else rules[members[0].salary_component].tie_breaker
 
 	if method == "Oldest Loan First":
 		# Two loans of equal rank are not equal claims: the one taken first has

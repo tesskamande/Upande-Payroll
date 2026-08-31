@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, now
+from frappe.utils import add_months, cint, flt, getdate, now
 
 
 def validate_basic_pay_against_cba(doc, method=None):
@@ -277,3 +277,139 @@ def apply_cba_to_employees(cba_name):
 		message = "No active employees found matching this CBA's job categories."
 
 	return {"success": True, "message": message, "updated": updated}
+
+
+# ----------------------------------------------------------------------
+# Automatic progression between job categories
+# ----------------------------------------------------------------------
+
+def category_since(employee):
+	"""When this employee entered the category they are in now.
+
+	The date the category was last changed, or their joining date where nothing
+	has changed it. That fallback is what makes the rule mean "nine months in
+	the job" on a site that has never recorded a promotion - which is every site
+	the first time this runs.
+	"""
+	row = frappe.db.get_value(
+		"Employee", employee, ["custom_job_category_since", "date_of_joining"], as_dict=True
+	)
+	if not row:
+		return None
+	return getdate(row.custom_job_category_since or row.date_of_joining) \
+		if (row.custom_job_category_since or row.date_of_joining) else None
+
+
+def progression_rules(company, as_on=None):
+	"""{from category: (to category, months)} under the agreement in force.
+
+	Read from the CBA rather than from settings because this is a negotiated
+	term, not a payroll preference: the agreement that fixes the semi-skilled
+	rate is the same one that says when somebody becomes semi-skilled. It also
+	means the rule is dated - a later agreement changing nine months to six does
+	not rewrite what applied under the last one.
+	"""
+	filters = {"docstatus": 1, "effective_start_date": ("<=", getdate(as_on or getdate()))}
+	if company:
+		filters["company"] = company
+
+	cba = frappe.db.get_value(
+		"CBA", filters, ["name", "company"], as_dict=True,
+		order_by="effective_start_date desc, creation desc",
+	)
+	if not cba:
+		return None, {}
+
+	rules = {}
+	for row in frappe.get_all(
+		"CBA Pay Table",
+		filters={"parent": cba.name, "parenttype": "CBA"},
+		fields=["job_category", "promotes_to", "after_months"],
+	):
+		if row.job_category and row.promotes_to and cint(row.after_months) > 0:
+			rules[row.job_category] = (row.promotes_to, cint(row.after_months))
+
+	return cba, rules
+
+
+@frappe.whitelist()
+def run_job_category_progressions(company=None, as_on=None, dry_run=0):
+	"""Move everyone who has served long enough into their next category.
+
+	Runs daily, and by hand from the CBA when somebody wants to see what it
+	would do first. Idempotent: an employee already in the destination category
+	has no rule to match, so a second run the same day moves nobody.
+
+	Pay goes up to the destination category's agreed rate, because it has to -
+	validate_basic_pay_against_cba refuses to save anybody below the rate for
+	the category they are in, so a promotion that left pay alone could not be
+	saved. Anybody already paid above the new rate keeps what they are on.
+	"""
+	as_on = getdate(as_on or getdate())
+	dry_run = cint(dry_run)
+
+	companies = [company] if company else frappe.get_all(
+		"CBA", filters={"docstatus": 1}, pluck="company", distinct=True
+	)
+
+	moved = []
+	for co in [c for c in companies if c]:
+		cba, rules = progression_rules(co, as_on)
+		if not rules:
+			continue
+
+		for emp in frappe.get_all(
+			"Employee",
+			filters={"company": co, "status": "Active", "job_category": ("in", list(rules))},
+			fields=["name", "employee_name", "job_category", "basic_pay"],
+		):
+			since = category_since(emp.name)
+			if not since:
+				continue
+
+			to_category, months = rules[emp.job_category]
+			if getdate(add_months(since, months)) > as_on:
+				continue
+
+			previous_pay = flt(emp.basic_pay)
+			minimum = get_cba_minimum(to_category, co)
+			new_pay = max(previous_pay, flt(minimum)) if minimum is not None else previous_pay
+
+			moved.append({
+				"employee": emp.name, "employee_name": emp.employee_name,
+				"from": emp.job_category, "to": to_category,
+				"since": str(since), "previous_basic_pay": previous_pay,
+				"new_basic_pay": new_pay,
+			})
+			if dry_run:
+				continue
+
+			# update_modified=False for the same reason the rate run uses it -
+			# a bulk change should not stamp every employee record as edited -
+			# which is also why the log below is the only trace, and not optional.
+			frappe.db.set_value("Employee", emp.name, {
+				"job_category": to_category,
+				"custom_job_category_since": as_on,
+				"basic_pay": new_pay,
+			}, update_modified=False)
+
+			frappe.get_doc({
+				"doctype": "CBA Application Log",
+				"cba": cba.name,
+				"company": co,
+				"employee": emp.name,
+				"employee_name": emp.employee_name,
+				"event": "Promotion",
+				"from_job_category": emp.job_category,
+				"job_category": to_category,
+				"previous_basic_pay": previous_pay,
+				"increase_amount": round(new_pay - previous_pay, 2),
+				"new_basic_pay": new_pay,
+				"applied_on": now(),
+				"applied_by": frappe.session.user,
+			}).insert(ignore_permissions=True)
+
+	if not dry_run and moved:
+		frappe.db.commit()
+	return moved
+

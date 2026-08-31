@@ -16,6 +16,7 @@
   "status",
   "details_section",
   "advance_amount",
+  "repayment_frequency",
   "repayment_periods",
   "repayment_start_date",
   "repay_from_salary",
@@ -127,9 +128,17 @@
    "reqd": 1
   },
   {
+   "fieldname": "repayment_frequency",
+   "fieldtype": "Select",
+   "label": "Repayment Frequency",
+   "options": "Monthly\nWeekly",
+   "default": "Monthly",
+   "reqd": 1
+  },
+  {
    "fieldname": "repayment_periods",
    "fieldtype": "Int",
-   "label": "Repayment Periods (Months)",
+   "label": "Repayment Periods",
    "reqd": 1
   },
   {
@@ -196,7 +205,7 @@
   {
    "fieldname": "monthly_instalment",
    "fieldtype": "Currency",
-   "label": "Monthly Instalment",
+   "label": "Instalment per Period",
    "read_only": 1
   },
   {

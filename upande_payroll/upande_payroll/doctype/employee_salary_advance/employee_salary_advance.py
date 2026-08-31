@@ -12,12 +12,45 @@ TOLERANCE = 0.01
 
 # Inputs that decide the shape of the plan. Change any of them and the schedule
 # is rebuilt; touch anything else and HR's own arrangement of it is left alone.
-PLAN_INPUTS = ("advance_type", "advance_amount", "repayment_periods",
+PLAN_INPUTS = ("advance_type", "advance_amount", "repayment_periods", "repayment_frequency",
 			   "repayment_start_date")
 
 # Row states the parent must not overwrite. Both are decisions somebody made
 # about that period, not conclusions drawn from what was collected.
 MANUAL_ROW_STATUS = ("Deferred", "Waived")
+
+
+PERIODS_PER_YEAR = {"Monthly": 12, "Weekly": 52}
+
+# Weekly periods are anchored to the month rather than to a fixed weekday: the
+# 7th, the 14th, the 21st, then whatever is left of the month. Four to a month,
+# and the sequence restarts on the 1st, so a weekly schedule can never drift out
+# of step with a payroll that closes its books at the month end - which is the
+# whole reason the last period of a month runs long.
+WEEK_ANCHORS = (7, 14, 21)
+
+
+def _due_date(start, index, frequency):
+	"""When the index-th period (0-based) falls due."""
+	if (frequency or "Monthly") != "Weekly":
+		return get_last_day(add_months(start, index))
+	return _weekly_due(start, index)
+
+
+def _weekly_due(start, index):
+	start = getdate(start)
+	month = start.replace(day=1)
+	ends = []
+	while len(ends) <= index:
+		last = get_last_day(month)
+		for day in WEEK_ANCHORS:
+			anchor = month.replace(day=day)
+			if start <= anchor < last:
+				ends.append(anchor)
+		if last >= start:
+			ends.append(last)
+		month = add_months(month, 1)
+	return ends[index]
 
 
 class EmployeeSalaryAdvance(Document):
@@ -210,7 +243,7 @@ class EmployeeSalaryAdvance(Document):
 		if flt(self.advance_amount) <= 0:
 			frappe.throw(_("Advance Amount must be more than zero."))
 		if cint(self.repayment_periods) < 1:
-			frappe.throw(_("Repayment Periods must be at least one month."))
+			frappe.throw(_("Repayment Periods must be at least one."))
 
 	def _validate_limits(self, settings):
 		"""Apply whichever ceilings the advance type actually sets.
@@ -316,8 +349,16 @@ class EmployeeSalaryAdvance(Document):
 				)
 			)
 
-		months = cint(self.repayment_periods)
-		return flt(flt(self.advance_amount) * rate / 100.0 * months / 12.0, 2)
+		# The rate is per annum, so the term has to be expressed in years - and
+		# a weekly advance's periods are weeks, not months. Dividing 16 weekly
+		# periods by 12 would charge a four month advance sixteen months of
+		# interest.
+		periods = cint(self.repayment_periods)
+		# .get rather than a subscript: an advance saved before this field
+		# existed carries nothing, and a term charged at a guessed frequency is
+		# better than a payroll run that stops on a KeyError.
+		per_year = PERIODS_PER_YEAR.get(self.repayment_frequency or "Monthly", 12)
+		return flt(flt(self.advance_amount) * rate / 100.0 * periods / float(per_year), 2)
 
 	def _totals(self):
 		"""What is owed, and the even instalment it divides into."""
@@ -382,7 +423,7 @@ class EmployeeSalaryAdvance(Document):
 
 			rows.append({
 				"period_no": period,
-				"due_date": get_last_day(add_months(start, period - 1)),
+				"due_date": _due_date(start, period - 1, self.repayment_frequency),
 				"opening_balance": flt(total - billed, 2),
 				"principal_amount": flt(amount - period_interest, 2),
 				"interest_amount": period_interest,
@@ -509,7 +550,7 @@ class EmployeeSalaryAdvance(Document):
 			apportioned = flt(apportioned + flt(row.interest_amount), 2)
 
 			row.period_no = index + 1
-			row.due_date = get_last_day(add_months(start, index))
+			row.due_date = _due_date(start, index, self.repayment_frequency)
 			row.opening_balance = flt(balance, 2)
 			row.principal_amount = flt(amount - flt(row.interest_amount), 2)
 			row.outstanding_amount = flt(max(amount - flt(row.paid_amount), 0.0), 2)

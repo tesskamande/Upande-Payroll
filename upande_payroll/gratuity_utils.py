@@ -493,3 +493,103 @@ def _calculate_tax_on_rows(doc):
 	doc.custom_paye = flt(
 		sum(flt(row.tax_on_gratuity) for row in doc.custom_gratuity_tax_computation), 2
 	)
+
+
+class GratuityMixin:
+	"""Teach Gratuity about the third way of paying it out.
+
+	Core knows two: raise an Additional Salary so it rides on a payslip, or post
+	its own journal. It reads the choice as a single boolean::
+
+	    def on_submit(self):
+	        if self.pay_via_salary_slip:
+	            self.create_additional_salary()
+	        else:
+	            self.create_gl_entries()
+
+	This app adds a third, Pay via Terminal Dues Settlement, where the
+	settlement carries the payment and the accounting. A gratuity on that mode
+	is not pay_via_salary_slip, so it fell into the journal branch and asked for
+	the expense and payable accounts the form had already hidden - "Account is
+	required", with no field on screen to satisfy it.
+
+	on_cancel had the matching hole. It reversed the journal whatever the
+	payment mode, so a gratuity that had never posted one could not be
+	cancelled: the reversal was built from the same blank accounts and failed
+	the same way.
+	"""
+
+	def _posts_own_journal(self):
+		"""True when this gratuity settles itself through the general ledger.
+
+		The other two modes hand the payment to another document, and the
+		accounting travels with it: the payslip for an Additional Salary, the
+		settlement's own journal for terminal dues.
+		"""
+		return not (self.pay_via_salary_slip or self.get("custom_pay_via_terminal_dues"))
+
+	def on_submit(self):
+		if self.get("custom_pay_via_terminal_dues") and not self.pay_via_salary_slip:
+			# The settlement picks this up, taxes it and posts it. Nothing to
+			# raise here, and no accounts to ask for.
+			return
+		super().on_submit()
+
+	def on_cancel(self):
+		if self._posts_own_journal():
+			super().on_cancel()
+			return
+
+		self._block_if_settled()
+		# Core sets this before reversing so the GL entries it made do not block
+		# the cancellation. Nothing was posted here, but the flag still belongs:
+		# it is what core would have been holding at this point.
+		self.ignore_linked_doctypes = [
+			"GL Entry", "Payment Ledger Entry", "Advance Payment Ledger Entry",
+		]
+		self._cancel_additional_salary()
+		self.set_status(update=True)
+
+	def _block_if_settled(self):
+		"""Refuse while a submitted Terminal Dues Settlement is paying this.
+
+		The settlement records the gratuity by name in a Data field rather than
+		a Link, so Frappe's own link check cannot see it and would let the
+		gratuity be cancelled out from under a settlement that pays it.
+		"""
+		settled = frappe.get_all(
+			"Terminal Dues Earning",
+			filters={
+				"source_doctype": "Gratuity", "source_document": self.name,
+				"parenttype": "Terminal Dues Settlement", "docstatus": 1,
+			},
+			pluck="parent", limit=1,
+		)
+		if settled:
+			frappe.throw(_(
+				"Terminal Dues Settlement {0} is paying this gratuity. Cancel it first."
+			).format(settled[0]))
+
+	def _cancel_additional_salary(self):
+		"""Withdraw the payslip entry this gratuity raised.
+
+		Core creates an Additional Salary on submit and never takes it back, so
+		cancelling the gratuity left the employee still owed the money - and the
+		link check would refuse the cancellation while it stood anyway.
+		"""
+		for name in frappe.get_all(
+			"Additional Salary",
+			filters={"ref_doctype": "Gratuity", "ref_docname": self.name, "docstatus": 1},
+			pluck="name",
+		):
+			paid_on = frappe.get_all(
+				"Salary Detail",
+				filters={"additional_salary": name, "parenttype": "Salary Slip", "docstatus": 1},
+				pluck="parent", limit=1,
+			)
+			if paid_on:
+				frappe.throw(_(
+					"{0} has already been paid on Salary Slip {1}. Cancel that first."
+				).format(name, paid_on[0]))
+			frappe.get_doc("Additional Salary", name).cancel()
+			frappe.msgprint(_("Cancelled {0}.").format(name), indicator="orange")
