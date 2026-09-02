@@ -1,0 +1,50 @@
+{
+ "actions": [],
+ "autoname": "field:category_name",
+ "creation": "2026-09-02 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "category_name"
+ ],
+ "fields": [
+  {
+   "description": "As it should read on a payslip and a CBA pay table - Unskilled, Clerk, Tractor Driver, whatever the agreement calls it.",
+   "fieldname": "category_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Job Category",
+   "reqd": 1,
+   "unique": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-02 00:00:00",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "CBA Job Category",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "quick_entry": 1,
+ "row_format": "Dynamic",
+ "sort_field": "category_name",
+ "sort_order": "ASC",
+ "states": [],
+ "track_changes": 1
+}

@@ -5,3 +5,6 @@
 [post_model_sync]
 # Patches added in this section will be executed after doctypes are migrated
 upande_payroll.patches.rename_component_abbreviations
+upande_payroll.patches.drop_job_category_since
+upande_payroll.patches.drop_annual_leave_allocated
+upande_payroll.patches.seed_cba_job_categories

@@ -56,8 +56,17 @@
   "statutory_income_component_mapping",
   "payroll_je_section",
   "gross_pay_account_method",
+  "payroll_journal_cost_centre",
   "column_break_je",
-  "single_gross_pay_account"
+  "single_gross_pay_account",
+  "liability_remittance_section",
+  "enable_liability_remittance",
+  "liability_remittance_payment_account",
+  "column_break_lr",
+  "payroll_remittance_accounts",
+  "salary_bank_split_section",
+  "enable_salary_bank_split",
+  "salary_bank_accounts"
  ],
  "fields": [
   {
@@ -356,6 +365,13 @@
    "reqd": 1
   },
   {
+   "fieldname": "payroll_journal_cost_centre",
+   "fieldtype": "Select",
+   "label": "Split Journal by Cost Centre",
+   "options": "Profit and Loss Only\nEvery Line\nDo Not Split",
+   "default": "Profit and Loss Only"
+  },
+  {
    "fieldname": "column_break_je",
    "fieldtype": "Column Break"
   },
@@ -435,6 +451,56 @@
    "label": "Statutory Deductions on Final Dues",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
    "options": "PAYE Only\nAll Statutory"
+  },
+  {
+   "fieldname": "liability_remittance_section",
+   "fieldtype": "Section Break",
+   "label": "Liability Remittance"
+  },
+  {
+   "fieldname": "enable_liability_remittance",
+   "fieldtype": "Check",
+   "label": "Raise Draft Bank Entries For Liabilities",
+   "description": "When the payroll journal is submitted, raise one draft Bank Entry for each liability it credited, ready to pay. Drafts only: nothing leaves the bank until somebody submits them."
+  },
+  {
+   "fieldname": "liability_remittance_payment_account",
+   "fieldtype": "Link",
+   "label": "Default Bank Account",
+   "options": "Account",
+   "depends_on": "enable_liability_remittance",
+   "description": "Used for any liability not given its own bank below. Leave it blank to insist every liability names one - anything unlisted is then reported after the run rather than paid from a guess."
+  },
+  {
+   "fieldname": "column_break_lr",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "payroll_remittance_accounts",
+   "fieldtype": "Table",
+   "label": "Where Each Liability Is Paid From",
+   "options": "Payroll Remittance Account",
+   "depends_on": "enable_liability_remittance",
+   "description": "One row per liability, naming the bank it is settled from - PAYE from KCB, NSSF from Absa, and so on. Anything not listed uses the default account beside this."
+  },
+  {
+   "fieldname": "salary_bank_split_section",
+   "fieldtype": "Section Break",
+   "label": "Net Pay By Bank"
+  },
+  {
+   "fieldname": "enable_salary_bank_split",
+   "fieldtype": "Check",
+   "label": "Split Net Pay By Employee's Bank",
+   "description": "Make Bank Entry raises one entry per bank instead of one for everyone, so the money for KCB staff leaves the company's KCB account and Absa staff leave Absa. Employees whose bank is not listed below are paid from the Payroll Entry's own Payment Account, as they are today."
+  },
+  {
+   "fieldname": "salary_bank_accounts",
+   "fieldtype": "Table",
+   "label": "Company Account For Each Bank",
+   "options": "Payroll Salary Bank",
+   "depends_on": "enable_salary_bank_split",
+   "description": "Which of the company's accounts pays the staff who bank at each bank. The Employee's Bank Name is what decides which group somebody falls in."
   }
  ],
  "index_web_pages_for_search": 1,

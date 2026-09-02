@@ -1,0 +1,44 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-01 09:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": ["bank", "payment_account"],
+ "fields": [
+  {
+   "columns": 5,
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee's Bank",
+   "options": "Bank",
+   "reqd": 1,
+   "description": "The bank on the Employee record, as set in Bank Name."
+  },
+  {
+   "columns": 5,
+   "fieldname": "payment_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Pay Them From",
+   "options": "Account",
+   "reqd": 1,
+   "description": "The company's own account used to pay everyone banking here - usually the company's account at that same bank, so the transfer is internal."
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-01 09:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Payroll Salary Bank",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

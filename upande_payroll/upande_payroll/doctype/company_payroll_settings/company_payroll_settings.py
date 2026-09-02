@@ -11,6 +11,7 @@ class CompanyPayrollSettings(Document):
 		self.validate_overtime_department_working_hours()
 		self.validate_terminal_dues_notice_period_rules()
 		self.validate_statutory_income_component_mapping()
+		self.validate_payroll_remittance_accounts()
 
 	def validate_overtime_department_working_hours(self):
 		seen = set()
@@ -60,6 +61,45 @@ class CompanyPayrollSettings(Document):
 					f"Statutory Income Component Mapping (row {row.idx})."
 				)
 			seen.add(row.salary_component)
+	def validate_payroll_remittance_accounts(self):
+		"""Resolve each row to an account, then allow only one row per account.
+
+		A row is usually picked by salary component, because that is the name on
+		the payslip. The account behind it is what the journal credits and what
+		the payment clears, so it is resolved here as well as in the form - a row
+		written by an import or the API has never been near the client script.
+
+		Two rows landing on the same account disagree about where it is paid from
+		or whether it is paid at all, and nothing can choose between them. That
+		is easy to do by accident: all four NSSF tiers share one account, so
+		picking two of them names the same account twice.
+		"""
+		from upande_payroll.liability_remittance import component_account
+
+		seen = {}
+		for row in self.payroll_remittance_accounts or []:
+			if row.salary_component:
+				resolved = component_account(self.company, row.salary_component)
+				if not resolved:
+					frappe.throw(
+						f"Row {row.idx}: '{row.salary_component}' has no Account set for "
+						f"{self.company}. Set it on the Salary Component first."
+					)
+				row.liability_account = resolved
+			elif not row.liability_account:
+				frappe.throw(
+					f"Row {row.idx}: pick a Salary Component, or set a Liability Account "
+					f"directly for something with no component behind it."
+				)
+
+			if row.liability_account in seen:
+				first = seen[row.liability_account]
+				frappe.throw(
+					f"Rows {first} and {row.idx} both come down to "
+					f"'{row.liability_account}', so they disagree about how it is paid. "
+					f"Components that share an account need one row between them."
+				)
+			seen[row.liability_account] = row.idx
 
 
 def get_monthly_working_hours(company, department=None):

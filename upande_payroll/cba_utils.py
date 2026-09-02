@@ -283,21 +283,21 @@ def apply_cba_to_employees(cba_name):
 # Automatic progression between job categories
 # ----------------------------------------------------------------------
 
-def category_since(employee):
-	"""When this employee entered the category they are in now.
+def service_since(employee):
+	"""The date service is counted from for a promotion: when they joined.
 
-	The date the category was last changed, or their joining date where nothing
-	has changed it. That fallback is what makes the rule mean "nine months in
-	the job" on a site that has never recorded a promotion - which is every site
-	the first time this runs.
+	Nothing records when somebody entered their current category, and nothing
+	needs to. A rule names the category it promotes FROM, so once an employee
+	has been moved on, that rule no longer matches them - the category itself is
+	what stops a second promotion, not a date.
+
+	It would matter only for chained rules, where a rule promotes out of a
+	category somebody was promoted into. Should that ever be wanted, the date
+	they entered the category has to be recorded first, because the joining date
+	would qualify them the moment the second rule was added.
 	"""
-	row = frappe.db.get_value(
-		"Employee", employee, ["custom_job_category_since", "date_of_joining"], as_dict=True
-	)
-	if not row:
-		return None
-	return getdate(row.custom_job_category_since or row.date_of_joining) \
-		if (row.custom_job_category_since or row.date_of_joining) else None
+	joined = frappe.db.get_value("Employee", employee, "date_of_joining")
+	return getdate(joined) if joined else None
 
 
 def progression_rules(company, as_on=None):
@@ -337,8 +337,9 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 	"""Move everyone who has served long enough into their next category.
 
 	Runs daily, and by hand from the CBA when somebody wants to see what it
-	would do first. Idempotent: an employee already in the destination category
-	has no rule to match, so a second run the same day moves nobody.
+	would do first. Idempotent, and by the category rather than by a date: an
+	employee already moved into the destination category no longer matches the
+	rule that promoted them, so a second run the same day moves nobody.
 
 	Pay goes up to the destination category's agreed rate, because it has to -
 	validate_basic_pay_against_cba refuses to save anybody below the rate for
@@ -363,7 +364,7 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 			filters={"company": co, "status": "Active", "job_category": ("in", list(rules))},
 			fields=["name", "employee_name", "job_category", "basic_pay"],
 		):
-			since = category_since(emp.name)
+			since = service_since(emp.name)
 			if not since:
 				continue
 
@@ -389,7 +390,6 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 			# which is also why the log below is the only trace, and not optional.
 			frappe.db.set_value("Employee", emp.name, {
 				"job_category": to_category,
-				"custom_job_category_since": as_on,
 				"basic_pay": new_pay,
 			}, update_modified=False)
 

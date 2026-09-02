@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import flt, rounded
+from frappe.utils import add_days, date_diff, flt, getdate, rounded
 
 
 def merge_duplicate_components(doc, method=None):
@@ -182,3 +182,55 @@ def _structure_positions(structure, parentfield):
 	if visiting is None:
 		visiting = len(rows)
 	return position, visiting
+
+
+def set_unattended_days(doc, method=None):
+	"""Days of the period the employee was not yet, or no longer, employed.
+
+	Nobody can mark attendance for a day somebody had not joined, so on a
+	payslip where earnings do not depend on payment days those days are paid in
+	full and nothing takes them back. These two figures are what an absence
+	formula deducts them with.
+
+	Only a joining or leaving date INSIDE the period counts. Somebody who joined
+	years ago has no days before joining in this period, and somebody who leaves
+	next year has none after relieving - the fields are about this payslip, not
+	about their service.
+
+	Counted as plain calendar days, holidays included. Two reasons. The holiday
+	list is read when the payslip is calculated, so a holiday declared after a
+	run - and they are declared at short notice - would change the figure the
+	next time that slip was touched, and two slips for the same period would
+	disagree depending on when they were built. And the rate these days are
+	priced at already accounts for holidays, so taking them out here would take
+	them out twice.
+	"""
+	if not doc.employee:
+		return
+
+	start = getdate(doc.start_date)
+	end = getdate(doc.end_date)
+	employee = frappe.db.get_value(
+		"Employee", doc.employee, ["date_of_joining", "relieving_date"], as_dict=True
+	) or frappe._dict()
+
+	before = after = 0
+	if employee.date_of_joining:
+		joined = getdate(employee.date_of_joining)
+		if start < joined <= end:
+			before = _calendar_days(start, add_days(joined, -1))
+
+	if employee.relieving_date:
+		left = getdate(employee.relieving_date)
+		if start <= left < end:
+			after = _calendar_days(add_days(left, 1), end)
+
+	doc.custom_days_before_joining = before
+	doc.custom_days_after_relieving = after
+
+
+def _calendar_days(start, end):
+	"""Days from start to end inclusive, or nought where the range is empty."""
+	if getdate(end) < getdate(start):
+		return 0
+	return max(date_diff(end, start) + 1, 0)

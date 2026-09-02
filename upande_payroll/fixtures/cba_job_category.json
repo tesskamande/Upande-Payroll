@@ -1,0 +1,58 @@
+[
+ {
+  "category_name": "Artisan",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.580493",
+  "name": "Artisan"
+ },
+ {
+  "category_name": "Clerk",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.711049",
+  "name": "Clerk"
+ },
+ {
+  "category_name": "Large Truck Driver",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.721007",
+  "name": "Large Truck Driver"
+ },
+ {
+  "category_name": "Security",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.787955",
+  "name": "Security"
+ },
+ {
+  "category_name": "Semi-skilled",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.804602",
+  "name": "Semi-skilled"
+ },
+ {
+  "category_name": "Small Truck Driver",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.818593",
+  "name": "Small Truck Driver"
+ },
+ {
+  "category_name": "Tractor Driver",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.830276",
+  "name": "Tractor Driver"
+ },
+ {
+  "category_name": "Unskilled",
+  "docstatus": 0,
+  "doctype": "CBA Job Category",
+  "modified": "2026-09-02 15:55:19.840757",
+  "name": "Unskilled"
+ }
+]

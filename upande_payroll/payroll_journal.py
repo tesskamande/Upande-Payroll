@@ -43,7 +43,7 @@ def rewrite_payroll_journal(doc, method=None):
 	slips = frappe.get_all(
 		"Salary Slip",
 		filters={"payroll_entry": pe.name, "docstatus": 1},
-		fields=["name", "employee", "gross_pay", "net_pay"],
+		fields=["name", "employee", "salary_structure", "gross_pay", "net_pay"],
 	)
 	if not slips:
 		return
@@ -62,16 +62,62 @@ def rewrite_payroll_journal(doc, method=None):
 
 	if not pe.payroll_payable_account:
 		frappe.throw(_("Payroll Payable Account is not set on {0}.").format(pe.name))
-	net_pay = flt(sum(flt(s.net_pay) for s in slips), 2)
-	credits[pe.payroll_payable_account] = flt(
-		credits.get(pe.payroll_payable_account, 0.0) + net_pay, 2)
+	for slip in slips:
+		_split(credits, pe.payroll_payable_account, pe,
+			   slip.employee, slip.salary_structure, slip.net_pay)
 
-	_apply(doc, pe, debits, credits)
+	_apply(doc, pe, settings, debits, credits)
 
 
 # ----------------------------------------------------------------------
 # Trigger
 # ----------------------------------------------------------------------
+
+def _split(bucket, account, pe, employee, structure, amount):
+	"""Add an amount to the posting, apportioned across the employee's cost centres.
+
+	The bucket is keyed on (account, cost centre) rather than the account alone.
+	Aggregating by account was what lost the cost centre: two people on
+	different farms sharing one expense account collapsed into a single figure,
+	and by the time the rows were written there was no employee left to ask, so
+	every line took the Payroll Entry's own cost centre.
+
+	Where an employee's cost is split across several centres the amount is split
+	with it, so the halves land where the work was done.
+	"""
+	amount = flt(amount, 2)
+	if not account or not amount:
+		return
+
+	shares = _cost_centres(pe, employee, structure)
+	remaining = amount
+	last = len(shares) - 1
+	for index, item in enumerate(shares.items()):
+		centre = item[0]
+		# The final share takes the rounding, so the split always sums to the
+		# amount rather than to a cent either side of it.
+		share = remaining if index == last else flt(amount * flt(item[1]) / 100.0, 2)
+		remaining = flt(remaining - share, 2)
+		if not share:
+			continue
+		key = (account, centre)
+		bucket[key] = flt(bucket.get(key, 0.0) + share, 2)
+
+
+def _cost_centres(pe, employee, structure):
+	"""{cost centre: percentage} for one employee.
+
+	Asked of the Payroll Entry itself rather than worked out here: core already
+	resolves the assignment's own split, then the employee, then the department,
+	then falls back to the run's cost centre - and caches the answer per
+	employee. Reimplementing that would be one more thing to keep in step.
+	"""
+	try:
+		shares = pe.get_payroll_cost_centers_for_employee(employee, structure)
+	except Exception:
+		shares = None
+	return shares or {pe.get("custom_cost_center") or pe.get("cost_center"): 100}
+
 
 def _find_payroll_entry(doc):
 	"""Core tags the payable row with reference_type/reference_name pointing at
@@ -103,7 +149,7 @@ def _add_gross_pay(pe, settings, slips, absence_components, debits):
 		# is left to post separately as a credit.
 		rows = frappe.db.sql(
 			"""
-			SELECT sca.account, SUM(sd.amount) AS total
+			SELECT ss.employee, ss.salary_structure, sca.account, SUM(sd.amount) AS total
 			FROM `tabSalary Slip` ss
 			JOIN `tabSalary Detail` sd ON sd.parent = ss.name
 			JOIN `tabSalary Component Account` sca
@@ -111,13 +157,12 @@ def _add_gross_pay(pe, settings, slips, absence_components, debits):
 			WHERE ss.payroll_entry = %s AND ss.docstatus = 1
 			  AND sd.parentfield = 'earnings'
 			  AND IFNULL(sd.do_not_include_in_total, 0) = 0
-			GROUP BY sca.account
+			GROUP BY ss.employee, ss.salary_structure, sca.account
 			""",
 			(pe.company, pe.name), as_dict=True,
 		)
 		for row in rows:
-			if row.account and flt(row.total):
-				debits[row.account] = flt(debits.get(row.account, 0.0) + flt(row.total), 2)
+			_split(debits, row.account, pe, row.employee, row.salary_structure, row.total)
 		return
 
 	# Per Employee / Single Account: debit what the employee actually cost, so
@@ -137,8 +182,7 @@ def _add_gross_pay(pe, settings, slips, absence_components, debits):
 
 		absence = _absence_total(slip.name, absence_components)
 		amount = flt(flt(slip.gross_pay) - absence, 2)
-		if amount:
-			debits[account] = flt(debits.get(account, 0.0) + amount, 2)
+		_split(debits, account, pe, slip.employee, slip.salary_structure, amount)
 
 
 def _absence_total(slip_name, absence_components):
@@ -170,7 +214,7 @@ def _add_employer_contributions(pe, debits, credits):
 	every contribution then silently posts as a credit with no expense at all."""
 	rows = frappe.db.sql(
 		"""
-		SELECT sd.salary_component, sca.account,
+		SELECT ss.employee, ss.salary_structure, sd.salary_component, sca.account,
 		       sca.custom_employer_expense_account AS expense_account,
 		       SUM(sd.amount) AS total
 		FROM `tabSalary Slip` ss
@@ -181,25 +225,22 @@ def _add_employer_contributions(pe, debits, credits):
 		WHERE ss.payroll_entry = %s AND ss.docstatus = 1
 		  AND sd.parentfield = 'deductions'
 		  AND sc.custom_is_employer_contribution = 1
-		GROUP BY sd.salary_component, sca.account, sca.custom_employer_expense_account
+		GROUP BY ss.employee, ss.salary_structure, sd.salary_component, sca.account,
+		         sca.custom_employer_expense_account
 		""",
 		(pe.company, pe.name), as_dict=True,
 	)
 	for row in rows:
-		amount = flt(row.total, 2)
-		if not amount or not row.account:
-			continue
-		credits[row.account] = flt(credits.get(row.account, 0.0) + amount, 2)
-		if row.expense_account:
-			debits[row.expense_account] = flt(
-				debits.get(row.expense_account, 0.0) + amount, 2)
+		_split(credits, row.account, pe, row.employee, row.salary_structure, row.total)
+		_split(debits, row.expense_account, pe, row.employee, row.salary_structure, row.total)
 
 
 def _add_employee_deductions(pe, credits, skip=None):
 	skip = skip or set()
 	rows = frappe.db.sql(
 		"""
-		SELECT sd.salary_component, sca.account, SUM(sd.amount) AS total
+		SELECT ss.employee, ss.salary_structure, sd.salary_component, sca.account,
+		       SUM(sd.amount) AS total
 		FROM `tabSalary Slip` ss
 		JOIN `tabSalary Detail` sd ON sd.parent = ss.name
 		JOIN `tabSalary Component` sc ON sc.name = sd.salary_component
@@ -209,16 +250,14 @@ def _add_employee_deductions(pe, credits, skip=None):
 		  AND sd.parentfield = 'deductions'
 		  AND IFNULL(sc.custom_is_employer_contribution, 0) = 0
 		  AND IFNULL(sc.do_not_include_in_total, 0) = 0
-		GROUP BY sd.salary_component, sca.account
+		GROUP BY ss.employee, ss.salary_structure, sd.salary_component, sca.account
 		""",
 		(pe.company, pe.name), as_dict=True,
 	)
 	for row in rows:
 		if row.salary_component in skip:
 			continue
-		amount = flt(row.total, 2)
-		if amount and row.account:
-			credits[row.account] = flt(credits.get(row.account, 0.0) + amount, 2)
+		_split(credits, row.account, pe, row.employee, row.salary_structure, row.total)
 
 
 def _add_loan_repayments(pe, credits):
@@ -229,26 +268,60 @@ def _add_loan_repayments(pe, credits):
 	amount_field = "total_payment"
 	rows = frappe.db.sql(
 		f"""
-		SELECT sl.loan_account, SUM(sl.{amount_field}) AS total
+		SELECT ss.employee, ss.salary_structure, sl.loan_account,
+		       SUM(sl.{amount_field}) AS total
 		FROM `tabSalary Slip` ss
 		JOIN `tabSalary Slip Loan` sl ON sl.parent = ss.name
 		WHERE ss.payroll_entry = %s AND ss.docstatus = 1
 		  AND IFNULL(sl.loan_account, '') != '' AND sl.{amount_field} > 0
-		GROUP BY sl.loan_account
+		GROUP BY ss.employee, ss.salary_structure, sl.loan_account
 		""",
 		(pe.name,), as_dict=True,
 	)
 	for row in rows:
-		amount = flt(row.total, 2)
-		if amount:
-			credits[row.loan_account] = flt(credits.get(row.loan_account, 0.0) + amount, 2)
+		_split(credits, row.loan_account, pe, row.employee, row.salary_structure, row.total)
 
 
 # ----------------------------------------------------------------------
 # Write it back
 # ----------------------------------------------------------------------
 
-def _apply(doc, pe, debits, credits):
+def _collapse(bucket, pe, settings):
+	"""Reduce the split to what the company actually wants on its journal.
+
+	A cost centre answers "where was this cost incurred", which is a question
+	about the profit and loss. A liability is not incurred anywhere - PAYE is one
+	debt to KRA however many greenhouses the people worked in - and splitting it
+	leaves the remittance to be added back up from five lines. ERPNext takes the
+	same view: it insists on a cost centre for a profit and loss account and asks
+	for none on a balance sheet one.
+
+	  Profit and Loss Only  expense and income lines carry the employee's cost
+	                        centre; everything else goes to the run's
+	  Every Line            the split reaches the liabilities too
+	  Do Not Split          one cost centre throughout, as it was before
+	"""
+	mode = (settings.get("payroll_journal_cost_centre") or "Profit and Loss Only")
+	if mode == "Every Line":
+		return bucket
+
+	fallback = pe.get("custom_cost_center") or pe.get("cost_center")
+	out = {}
+	for key in bucket:
+		account = key[0]
+		centre = key[1]
+		if mode == "Do Not Split":
+			centre = fallback
+		else:
+			root = frappe.get_cached_value("Account", account, "root_type")
+			if root not in ("Income", "Expense"):
+				centre = fallback
+		new_key = (account, centre)
+		out[new_key] = flt(out.get(new_key, 0.0) + bucket[key], 2)
+	return out
+
+
+def _apply(doc, pe, settings, debits, credits):
 	total_debit = flt(sum(debits.values()), 2)
 	total_credit = flt(sum(credits.values()), 2)
 	difference = flt(abs(total_debit - total_credit), 2)
@@ -268,21 +341,26 @@ def _apply(doc, pe, debits, credits):
 				frappe.format_value(difference, {"fieldtype": "Currency"}), pe.company)
 		)
 
-	cost_center = pe.get("custom_cost_center") or pe.get("cost_center")
+	debits = _collapse(debits, pe, settings)
+	credits = _collapse(credits, pe, settings)
 	doc.set("accounts", [])
 
-	for account, amount in debits.items():
+	# One row per account AND cost centre. Where a company puts everybody on one
+	# cost centre this comes out exactly as it did before; where the employees
+	# carry their own, the cost lands on theirs instead of the run's.
+	for key in sorted(debits, key=lambda k: (k[0], k[1] or "")):
 		doc.append("accounts", {
-			"account": account, "cost_center": cost_center,
-			"debit_in_account_currency": flt(amount, 2),
+			"account": key[0], "cost_center": key[1],
+			"debit_in_account_currency": flt(debits[key], 2),
 			"credit_in_account_currency": 0,
 		})
 
-	for account, amount in credits.items():
+	for key in sorted(credits, key=lambda k: (k[0], k[1] or "")):
+		account = key[0]
 		row = {
-			"account": account, "cost_center": cost_center,
+			"account": account, "cost_center": key[1],
 			"debit_in_account_currency": 0,
-			"credit_in_account_currency": flt(amount, 2),
+			"credit_in_account_currency": flt(credits[key], 2),
 		}
 		if account == pe.payroll_payable_account:
 			row["reference_type"] = "Payroll Entry"

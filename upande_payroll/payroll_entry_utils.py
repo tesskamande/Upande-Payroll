@@ -44,6 +44,13 @@ class PayrollEntryMixin:
 		if for_withheld_salaries and chosen:
 			rows = [row for row in rows if row.employee in chosen]
 
+		# Narrowed to one bank's staff while make_bank_entry works through the
+		# groups. Applies to withheld releases too, so releasing a withheld
+		# batch still pays each person out of their own bank.
+		only = getattr(self, "_only_employees", None)
+		if only is not None:
+			rows = [row for row in rows if row.employee in only]
+
 		employer_side = employer_contribution_components()
 		if not employer_side:
 			return rows
@@ -60,14 +67,44 @@ class PayrollEntryMixin:
 		click writes another draft for the same money. Nothing links the drafts
 		and each one is submittable.
 
-		Asking for the journal itself instead closes that window. The ordinary
-		half is left as HRMS wrote it.
+		Asking for the journal itself instead closes that window.
+
+		The ordinary half now has to be re-asked rather than taken from HRMS.
+		Its query counts ANY Bank Entry referencing this run as proof the staff
+		have been paid, and the liability remittances reference the run too so
+		they show up under Connections. Left alone, remitting KRA would take
+		away the button that pays the wages. Remittances are discounted here -
+		they settle a statutory account, not the payroll payable.
 		"""
 		result = super().has_bank_entries()
+
+		if result.get("has_bank_entries"):
+			result["has_bank_entries"] = bool(self.non_remittance_bank_entries())
+
 		if not result.get("has_bank_entries_for_withheld_salaries"):
 			if self.pending_withheld_bank_entry():
 				result["has_bank_entries_for_withheld_salaries"] = True
 		return result
+
+	def non_remittance_bank_entries(self):
+		"""Bank entries for this run that actually pay the staff.
+
+		The same query HRMS runs (payroll_entry.py:897), minus anything the
+		liability remittance raised.
+		"""
+		return frappe.db.sql_list(
+			"""
+			SELECT DISTINCT je.name
+			FROM `tabJournal Entry` je
+			INNER JOIN `tabJournal Entry Account` jea ON jea.parent = je.name
+			WHERE je.voucher_type IN ('Bank Entry', 'Cash Entry')
+				AND jea.reference_type = 'Payroll Entry'
+				AND jea.reference_name = %s
+				AND IFNULL(je.custom_source_payroll_entry, '') = ''
+			LIMIT 1
+			""",
+			self.name,
+		)
 
 	@frappe.whitelist()
 	def make_bank_entry(self, for_withheld_salaries=False):
@@ -83,7 +120,128 @@ class PayrollEntryMixin:
 					),
 					title=_("Bank Entry Already Raised"),
 				)
-		return super().make_bank_entry(for_withheld_salaries=for_withheld_salaries)
+		groups = self.salary_bank_groups(for_withheld_salaries)
+		if not groups:
+			return super().make_bank_entry(for_withheld_salaries=for_withheld_salaries)
+
+		# payment_account is what core credits (payroll_entry.py,
+		# set_accounting_entries_for_bank_entry), so each pass is the stock
+		# routine with a different bank and a different slice of the run. The
+		# document is never saved, so the swap lives only for this call.
+		# bank_account is cleared with it: it names a Bank Account record for
+		# the run's usual account, and leaving it stamped on another bank's
+		# entry would label the payment with the wrong one.
+		original_account, original_bank = self.payment_account, self.bank_account
+		created = []
+		try:
+			for account, employees, label in groups:
+				self._only_employees = employees
+				self.payment_account = account
+				self.bank_account = None
+				entry = super().make_bank_entry(for_withheld_salaries=for_withheld_salaries)
+				if entry:
+					created.append((label, entry))
+		finally:
+			self._only_employees = None
+			self.payment_account = original_account
+			self.bank_account = original_bank
+
+		if not created:
+			return None
+		self.announce_bank_split(created)
+		# Core hands back one document. The caller only routes to the journal
+		# list filtered by this run, which shows all of them.
+		return created[0][1]
+
+	def salary_bank_groups(self, for_withheld_salaries=False):
+		"""Who is paid from which of the company's accounts, or [] to leave it alone.
+
+		Empty when the company has not switched the split on, so the stock
+		single entry is used and nothing about the existing behaviour changes.
+		"""
+		if not frappe.db.exists("Company Payroll Settings", self.company):
+			return []
+		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
+		if not settings.get("enable_salary_bank_split"):
+			return []
+
+		accounts = {
+			row.bank: row.payment_account
+			for row in (settings.get("salary_bank_accounts") or [])
+			if row.bank and row.payment_account
+		}
+		if not accounts:
+			return []
+
+		# The same rows the entry would have been built from, before any bank
+		# filter is applied - so leavers, withheld staff and anyone else core
+		# excludes are excluded here too rather than reasoned about again.
+		self._only_employees = None
+		employees = {row.employee for row in self.get_salary_slip_details(for_withheld_salaries)}
+		if not employees:
+			return []
+
+		banks = frappe.get_all(
+			"Employee", filters={"name": ("in", list(employees))},
+			fields=["name", "bank_name"],
+		)
+
+		by_account, unmapped = {}, set()
+		for employee in banks:
+			account = accounts.get(employee.bank_name) if employee.bank_name else None
+			if not account:
+				# No bank on the record, or a bank nobody has given an account
+				# to. Paid from the run's own Payment Account exactly as before,
+				# rather than held back - somebody must still be paid.
+				unmapped.add(employee.name)
+				continue
+			by_account.setdefault((account, employee.bank_name), set()).add(employee.name)
+
+		groups = [
+			(account, staff, bank)
+			for (account, bank), staff in sorted(by_account.items(), key=lambda kv: kv[0][1])
+		]
+
+		# Nobody matched a configured bank, so there is nothing this can do that
+		# the stock single entry does not already do better.
+		if not groups:
+			return []
+
+		if unmapped:
+			if not self.payment_account:
+				frappe.throw(
+					_("{0} employee(s) on this run have no bank set, or bank at one with no "
+					  "company account against it, and the Payroll Entry has no Payment "
+					  "Account to fall back on.").format(len(unmapped))
+				)
+			groups.append((self.payment_account, unmapped, _("no bank set")))
+
+		# One group is still returned rather than shortcut away. If everybody
+		# banks at KCB and KCB has been given the company's KCB account, that
+		# account is what should pay them - falling back to the stock entry here
+		# would quietly pay them all from the run's Payment Account instead and
+		# ignore the configuration.
+		return groups
+
+	def announce_bank_split(self, created):
+		rows = "".join(
+			"<tr><td>{0}</td><td>{1}</td><td style='text-align:right'>{2}</td></tr>".format(
+				frappe.utils.escape_html(str(label)),
+				frappe.utils.get_link_to_form("Journal Entry", entry.name),
+				frappe.format_value(entry.total_credit, {"fieldtype": "Currency"}),
+			)
+			for label, entry in created
+		)
+		frappe.msgprint(
+			_("Net pay has been split across the staff's own banks. Each entry still "
+			  "needs its Reference No and Date before it can be submitted."
+			  "<br><br><table class='table table-bordered'>"
+			  "<thead><tr><th>Bank</th><th>Entry</th>"
+			  "<th style='text-align:right'>Amount</th></tr></thead>"
+			  "<tbody>{0}</tbody></table>").format(rows),
+			title=_("Paid From {0} Accounts").format(len(created)),
+			indicator="green",
+		)
 
 	def pending_withheld_bank_entry(self):
 		"""An unsubmitted withheld bank entry for this run, if there is one.

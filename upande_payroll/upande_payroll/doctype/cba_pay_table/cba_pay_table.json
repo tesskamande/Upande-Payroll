@@ -18,10 +18,10 @@
  "fields": [
   {
    "fieldname": "job_category",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Job Category",
-   "options": "Unskilled\nSemi-skilled\nSecurity\nTractor Driver\nClerk\nSmall Truck Driver\nLarge Truck Driver\nArtisan"
+   "options": "CBA Job Category"
   },
   {
    "fieldname": "current_basic_pay",
@@ -52,9 +52,9 @@
   },
   {
    "fieldname": "promotes_to",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Promotes To",
-   "options": "\nUnskilled\nSemi-skilled\nSecurity\nTractor Driver\nClerk\nSmall Truck Driver\nLarge Truck Driver\nArtisan",
+   "options": "CBA Job Category",
    "in_list_view": 0
   },
   {

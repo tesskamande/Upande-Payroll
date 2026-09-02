@@ -146,6 +146,15 @@ STATUTORY_FIELDS = {
 						"falling in this period. Everyone else is left out of "
 						"the run rather than given an empty payslip."},
 	],
+	# Links a liability remittance back to the run it clears. Deliberately not
+	# the reference_type row core uses: hrms reads that as "the salaries have
+	# been paid" and hides Make Bank Entry (liability_remittance.py:27).
+	"Journal Entry": [
+		{"fieldname": "custom_source_payroll_entry", "fieldtype": "Link",
+		 "label": "Source Payroll Entry", "options": "Payroll Entry",
+		 "insert_after": "voucher_type", "read_only": 1, "no_copy": 1,
+		 "description": "The payroll run whose liabilities this entry remits."},
+	],
 	"Salary Component": [
 		{"fieldname": "p9a_tax_deduction_card_type", "fieldtype": "Select",
 		 "label": "P9A Tax Deduction Card Type", "insert_after": "type",
@@ -311,7 +320,20 @@ RETIRED_FIELDS = {
 	# the same job on any Employee field, so a dedicated one earned its space
 	# only if companies split runs that way, and they do not.
 	"Payroll Entry": ["employment_type"],
-	"Employee": [# Which union somebody belongs to was never read by anything -
+	# Renamed while nothing was configured: the remittance is per liability
+	# account, so there is no separate grouping label to carry.
+	# Which liability an entry settles is the account it debits. Carrying it in
+	# a field as well was one fact in two places, and the field only ever
+	# repeated what the row beneath it already said.
+	"Journal Entry": ["custom_remittance_payee_group", "custom_remittance_remit_to",
+					  "custom_remitted_liability_account"],
+	"Employee": [# Service time for a promotion is measured from the joining date,
+				 # so a second date recording when somebody entered their current
+				 # category had nothing to add. It only mattered for chained
+				 # rules, and a category that has been promoted out of has no
+				 # rule left to match.
+				 "custom_job_category_since",
+				 # Which union somebody belongs to was never read by anything -
 				 # the tick box is what a dues formula needs.
 				 "union",
 				 "payroll_earnings_section", "payroll_deductions_section",
@@ -328,7 +350,12 @@ RETIRED_FIELDS = {
 # one document per employee per year, which for a few thousand staff is a list
 # nobody can work with; Employee Tax History holds the same figures as a grid
 # under one document per employee.
-RETIRED_DOCTYPES = ["Employee Annual Tax Record"]
+RETIRED_DOCTYPES = [
+	"Employee Annual Tax Record",
+	# Both replaced by Payroll Remittance Account before any of them shipped.
+	"Payroll Remittance Group",
+	"Payroll Remittance Exception",
+]
 
 
 def remove_retired_doctypes():

@@ -18,7 +18,6 @@ fixtures = [
 			["dt", "=", "Employee"],
 			["fieldname", "in", [
 				"job_category",
-				"custom_job_category_since",
 				"basic_pay",
 				"custom_is_secondary_employment",
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
@@ -60,6 +59,9 @@ fixtures = [
 				# Written by the two thirds cap for loans as well as components.
 				"custom_total_actual_repayment", "custom_total_deferred_deductions",
 				"custom_has_pending_deductions",
+				# Days nobody could mark attendance for, so an absence formula
+				# has something to work from.
+				"custom_days_before_joining", "custom_days_after_relieving",
 			]],
 		],
 	},
@@ -83,7 +85,20 @@ fixtures = [
 		"dt": "Property Setter",
 		"prefix": "field_order",
 		"filters": [
-			["doc_type", "in", ["Employee", "Gratuity", "Leave Encashment", "Salary Component", "Salary Slip"]],
+			# Employee deliberately absent. A field_order Property Setter is the
+			# doctype's WHOLE field sequence as one array - shipping one for
+			# Employee means this app replays its own idea of the entire layout
+			# over whatever any other app, or Customize Form, did to it. Other
+			# apps on the same Employee doctype (upande_hr among them) fixture
+			# their own field_order for it; two apps doing that fight on every
+			# migrate, whichever synced last wins, and HR's changes get reset.
+			# Payroll's own Employee fields (basic_pay, job_category, the
+			# statutory opt-outs, the payroll sections) still land in the right
+			# place without this - they carry their own insert_after via the
+			# employee_custom_field fixture, which is what actually creates
+			# them, and Meta.sort_fields falls back to insert_after for any
+			# field the array doesn't mention.
+			["doc_type", "in", ["Gratuity", "Leave Encashment", "Salary Component", "Salary Slip"]],
 			["property", "=", "field_order"],
 		],
 	},
@@ -105,7 +120,11 @@ fixtures = [
 				"salary_component", "posting_date", "payroll_date",
 			]],
 		],
-	}
+	},
+	# The categories a fresh install starts with. Still just a starting point -
+	# HR adds, renames or removes one from the list view like any other record,
+	# nothing here is enforced.
+	{"doctype": "CBA Job Category"},
 ]
 
 # Apps
@@ -268,6 +287,10 @@ doc_events = {
 	},
 	"Journal Entry": {
 		"before_insert": "upande_payroll.payroll_journal.rewrite_payroll_journal",
+		# Once the accrual is real, the liabilities it credited can be paid.
+		# Drafts only, one per destination - see liability_remittance.py.
+		"on_submit": "upande_payroll.liability_remittance.create_remittance_entries",
+		"on_cancel": "upande_payroll.liability_remittance.cancel_remittance_entries",
 	},
 	"Leave Application": {
 		"on_submit": "upande_payroll.leave_travelling_allowance.create_lta",
@@ -288,6 +311,9 @@ doc_events = {
 		# finished deciding what fits.
 		# Merge next, so the two thirds rule sees one row per component rather
 		# than counting the same deduction twice over.
+		# Before validate: the absence formula reads these while the slip is
+		# being calculated, so they have to be there first.
+		"before_validate": "upande_payroll.salary_slip_utils.set_unattended_days",
 		"validate": [
 			"upande_payroll.salary_advance.apply_salary_advances",
 			"upande_payroll.salary_slip_utils.merge_duplicate_components",

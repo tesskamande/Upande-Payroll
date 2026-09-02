@@ -194,6 +194,19 @@ def _already_paid(doc, cfg, allocation):
 				allocation.from_date, allocation.to_date,
 				linked[0].name, linked[0].ref_docname)
 
+	# The entitlement, not just the payment. The days already taken in this
+	# period are what was earned against, and they stay taken whatever happens
+	# to the Additional Salary afterwards - so somebody who cancels the
+	# allowance by hand cannot hand the employee a second one by approving more
+	# leave. Only submitted applications count, so cancelling the leave itself
+	# does release the entitlement, which is the one case that should.
+	taken = flt(sum(flt(row.total_leave_days) for row in period), 2)
+	if taken >= flt(cfg.lta_minimum_days):
+		return _("{0} has already taken {1} of {2} qualifying days in {3} to {4}, "
+				 "so the allowance for this period has been earned.").format(
+			doc.employee_name, taken, flt(cfg.lta_minimum_days),
+			allocation.from_date, allocation.to_date)
+
 	own = set(names)
 	own.add(doc.name)
 	for row in frappe.get_all(
