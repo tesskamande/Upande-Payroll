@@ -7,6 +7,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 
+from upande_payroll.kenya_statutory_gross_pay import (
+	absence_on_slip,
+	get_absence_components,
+)
+
 DOCSTATUS = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
 
 
@@ -52,14 +57,20 @@ def execute(filters=None):
 		"Kenya Payroll Settings", "monthly_personal_relief"
 	))
 
-	rows = [_month(slip, relief) for slip in slips]
+	# Pay for time not worked is not gross pay. The statutory returns and the
+	# P10 already take it off, and the tax on each of these lines was charged on
+	# a base net of it, so a card that reported the full gross would state a
+	# chargeable pay its own tax figure does not follow from.
+	absence_components = get_absence_components(filters.company)
+
+	rows = [_month(slip, relief, absence_components) for slip in slips]
 	rows.append(_year_total(rows))
 	return columns, rows
 
 
 # ----------------------------------------------------------------------
 
-def _month(slip, monthly_relief):
+def _month(slip, monthly_relief, absence_components=None):
 	"""One line of the card, using the P9A tag on each component.
 
 	Nothing here knows a component by name. A company that calls its basic pay
@@ -82,7 +93,7 @@ def _month(slip, monthly_relief):
 		p9a[row.tag] = p9a.get(row.tag, 0.0) + flt(row.amount)
 
 	basic = p9a.get("Basic Salary", 0.0)
-	gross = flt(slip.gross_pay)
+	gross = max(flt(slip.gross_pay) - absence_on_slip(slip.name, absence_components), 0.0)
 
 	# E1 is 30% of pensionable pay, E2 the actual scheme contribution, E3 any
 	# other. Only the lowest of the three is allowable, which is the cap KRA

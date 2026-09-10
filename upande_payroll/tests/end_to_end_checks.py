@@ -15,6 +15,7 @@ one broken area never hides the state of the rest.
 
 import frappe
 from frappe.utils import flt
+from upande_payroll.tests.employee_fixture import new_employee
 
 COMPANY = "Karen Roses"
 RESULTS = []
@@ -141,11 +142,11 @@ def employee(name, joining="2026-01-01", **extra):
 		if extra:
 			frappe.db.set_value("Employee", existing, extra)
 		return existing
-	doc = frappe.get_doc({
-		"doctype": "Employee", "first_name": name, "company": COMPANY,
-		"date_of_joining": joining, "date_of_birth": "1990-01-01",
-		"gender": "Female", "status": "Active",
-	}).insert(ignore_permissions=True)
+	doc = new_employee(
+		first_name=name, company=COMPANY,
+		date_of_joining=joining, date_of_birth="1990-01-01",
+		gender="Female", status="Active",
+	)
 	if extra:
 		frappe.db.set_value("Employee", doc.name, extra)
 	return doc.name

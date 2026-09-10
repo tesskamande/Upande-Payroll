@@ -10,6 +10,10 @@ from frappe.utils import flt
 # hardcoded into the columns so the same report serves a company split by farm,
 # by department or not split at all.
 GROUP_FIELDS = {
+	# The farm is read off the Employee like every other split here. custom_farm
+	# holds the farm's own name, which is also what a Farm document is named by,
+	# so the columns come out labelled the way the farms are known.
+	"Farm": "custom_farm",
 	"Department": "department",
 	"Designation": "designation",
 	"Employee Grade": "grade",
@@ -36,7 +40,10 @@ def execute(filters=None):
 	earnings, deductions, employer = _totals(slips, buckets, filters)
 
 	groups = _groups_present(buckets, earnings, deductions, employer)
-	return _columns(groups, filters), _rows(groups, earnings, deductions, employer, filters)
+	return (
+		_columns(groups, filters),
+		_rows(groups, earnings, deductions, employer, filters, slips, buckets),
+	)
 
 
 # ----------------------------------------------------------------------
@@ -52,6 +59,10 @@ def _get_slips(filters):
 		("to_date", "ss.end_date <= %(to_date)s"),
 		("department", "ss.department = %(department)s"),
 		("employee", "ss.employee = %(employee)s"),
+		# Scoping to one run rather than a date range is what lets this report be
+		# reached from Payroll Entry's Connections: the form dashboard passes the
+		# document's own name into a filter of this name and nothing else.
+		("payroll_entry", "ss.payroll_entry = %(payroll_entry)s"),
 	):
 		if filters.get(field):
 			conditions.append(clause)
@@ -144,6 +155,73 @@ def _groups_present(buckets, *totals):
 	return sorted(used, key=lambda g: (g == UNASSIGNED, g))
 
 
+def _headcount(slips, buckets, groups, show_total):
+	"""How many people each column stands for.
+
+	Two farms at the same total mean different things at three employees and at
+	thirty, and a farm that is five people short of last month is invisible in
+	the money alone. Counted as distinct employees, not slips, so a range
+	covering two months does not double everybody.
+	"""
+	seen = {}
+	for slip in slips:
+		seen.setdefault(buckets.get(slip.name), set()).add(slip.employee)
+
+	row = {"component": _("Employees"), "is_group": 1, "is_headcount": 1}
+	everyone = set()
+	for group in groups:
+		people = seen.get(group, set())
+		row[frappe.scrub(group)] = len(people) or None
+		everyone |= people
+	if show_total:
+		row["total"] = len(everyone) or None
+	return row
+
+
+def _deduction_groups(company):
+	"""{component: (order, label)} from the company's own Deduction Priority.
+
+	Statutory components are always grouped, because the app knows them itself.
+	Beyond those, a company that has ranked nothing simply gets one Statutory
+	group and everything else under Other - grouping is a reading aid, so an
+	unconfigured company loses some of the aid rather than being given tiers
+	nobody chose.
+	"""
+	from upande_payroll.kenya_statutory_calculator import get_statutory_components
+
+	# Statutory first, and from the app's own component map rather than from
+	# Deduction Priority. Priority ranks only what may give way under the two
+	# thirds rule, and statutory never gives way - so keying the whole grouping
+	# off Priority alone dropped PAYE, NSSF, SHIF and the Housing Levy into a
+	# bucket called Other, which is the one thing a statutory register must not
+	# call them.
+	mapping = {
+		name: (-1.0, _("Statutory"))
+		for name in set(get_statutory_components().values())
+	}
+
+	priority = frappe.db.get_value("Deduction Priority", {"company": company}, "name")
+	if not priority:
+		return mapping
+
+	for row in frappe.get_all(
+		"Deduction Priority Detail",
+		filters={"parent": priority},
+		fields=["salary_component", "deduction_group"],
+	):
+		if not (row.salary_component and row.deduction_group):
+			continue
+		group = frappe.get_cached_value(
+			"Deduction Group", row.deduction_group, ["group_name", "priority"], as_dict=True
+		)
+		if not group:
+			continue
+		if row.salary_component in mapping:
+			continue
+		mapping[row.salary_component] = (flt(group.priority), group.group_name or row.deduction_group)
+	return mapping
+
+
 # ----------------------------------------------------------------------
 
 def _columns(groups, filters):
@@ -172,13 +250,13 @@ def _columns(groups, filters):
 	return columns
 
 
-def _rows(groups, earnings, deductions, employer, filters):
+def _rows(groups, earnings, deductions, employer, filters, slips, buckets):
 	rows = []
 	show_total = len(groups) > 1
 
 	def section(title, totals):
 		"""One block: a heading, its components, then its own total."""
-		rows.append({"component": title, "is_group": 1})
+		rows.append({"component": title, "is_group": 1, "is_heading": 1})
 		running = {}
 		for component in sorted(totals):
 			amounts = totals[component]
@@ -194,12 +272,54 @@ def _rows(groups, earnings, deductions, employer, filters):
 			rows.append(row)
 		return running
 
+	def grouped(title, totals, component_groups):
+		"""The deductions block, ordered by Deduction Group with a subtotal each.
+
+		A flat list reads fine at seven components and not at all at thirty. The
+		order is the company's own Deduction Priority - the same tiers the two
+		thirds rule makes give way - so the register reads in the order the money
+		is actually taken. Anything nobody has ranked falls to the end under its
+		own subtotal rather than being dropped.
+		"""
+		rows.append({"component": title, "is_group": 1, "is_heading": 1})
+		running = {}
+
+		other = _("Other")
+		by_group = {}
+		for component in totals:
+			order, label = component_groups.get(component, (float("inf"), other))
+			by_group.setdefault((order, label), []).append(component)
+
+		for key in sorted(by_group, key=lambda k: (k[0], k[1])):
+			subtotal = {}
+			for component in sorted(by_group[key]):
+				amounts = totals[component]
+				row = {"component": component}
+				line = 0.0
+				for group in groups:
+					value = flt(amounts.get(group, 0.0))
+					row[frappe.scrub(group)] = value or None
+					running[group] = running.get(group, 0.0) + value
+					subtotal[group] = subtotal.get(group, 0.0) + value
+					line += value
+				if show_total:
+					row["total"] = line or None
+				rows.append(row)
+			rows.append(_summary(_("Total {0}").format(key[1]), subtotal, groups, show_total))
+
+		return running
+
 	gross = section(_("EARNINGS"), earnings)
 	rows.append(_summary(_("Gross Pay"), gross, groups, show_total))
 	rows.append({})
 
 	# Statutory and voluntary deductions the employee actually bears.
-	taken = section(_("DEDUCTIONS"), deductions)
+	component_groups = _deduction_groups(filters.company)
+	taken = (
+		grouped(_("DEDUCTIONS"), deductions, component_groups)
+		if component_groups
+		else section(_("DEDUCTIONS"), deductions)
+	)
 	rows.append(_summary(_("Total Deductions"), taken, groups, show_total))
 	rows.append({})
 
@@ -213,6 +333,12 @@ def _rows(groups, earnings, deductions, employer, filters):
 		rows.append({})
 		cost = {g: flt(gross.get(g, 0.0)) + flt(paid.get(g, 0.0)) for g in groups}
 		rows.append(_summary(_("Total Cost to Company"), cost, groups, show_total))
+
+	# Last, under the money it explains. A headcount at the top reads as though
+	# it were part of the earnings; at the bottom it reads as what the column
+	# stands for, which is what it is.
+	rows.append({})
+	rows.append(_headcount(slips, buckets, groups, show_total))
 
 	return rows
 

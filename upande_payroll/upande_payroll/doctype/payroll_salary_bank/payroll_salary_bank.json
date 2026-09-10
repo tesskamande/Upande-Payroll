@@ -5,7 +5,12 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": ["bank", "payment_account"],
+ "field_order": [
+  "bank",
+  "business_unit",
+  "farm",
+  "payment_account"
+ ],
  "fields": [
   {
    "columns": 5,
@@ -14,8 +19,29 @@
    "in_list_view": 1,
    "label": "Employee's Bank",
    "options": "Bank",
-   "reqd": 1,
-   "description": "The bank on the Employee record, as set in Bank Name."
+   "description": "The bank on the Employee record, as set in Bank Name.",
+   "depends_on": "eval:parent.salary_bank_split_by==\"Employee Bank\"",
+   "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Employee Bank\""
+  },
+  {
+   "columns": 3,
+   "depends_on": "eval:parent.salary_bank_split_by==\"Business Unit\"",
+   "fieldname": "business_unit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Business Unit",
+   "options": "Business Unit",
+   "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Business Unit\""
+  },
+  {
+   "columns": 3,
+   "depends_on": "eval:parent.salary_bank_split_by==\"Farm\"",
+   "fieldname": "farm",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Farm",
+   "options": "Farm",
+   "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Farm\""
   },
   {
    "columns": 5,

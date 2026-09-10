@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "format:{bank} - {branch_name}",
+ "creation": "2026-09-08 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "bank",
+  "branch_name",
+  "col_branch_1",
+  "branch_code",
+  "disabled"
+ ],
+ "fields": [
+  {
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Bank",
+   "options": "Bank",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "description": "The branch as the bank names it, for example \"Moi Avenue\".",
+   "fieldname": "branch_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Branch Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_branch_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The code the bank clears on. Unique within the bank.",
+   "fieldname": "branch_code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Branch Code",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "description": "Hide from selection without deleting. Employees already pointing here keep their branch.",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-08 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Bank Branch",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "idx": 2,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -2,12 +2,14 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 
 
 class CompanyPayrollSettings(Document):
 	def validate(self):
+		self._validate_salary_bank_split()
 		self.validate_overtime_department_working_hours()
 		self.validate_terminal_dues_notice_period_rules()
 		self.validate_statutory_income_component_mapping()
@@ -100,6 +102,38 @@ class CompanyPayrollSettings(Document):
 					f"Components that share an account need one row between them."
 				)
 			seen[row.liability_account] = row.idx
+
+	def _validate_salary_bank_split(self):
+		"""Every row must name the thing the split is keyed on.
+
+		The three columns look alike in the grid and only one of them is read.
+		A Farm split with the Bank column filled in matches nobody, so every
+		employee falls through to the run's Payment Account and the whole point
+		of the split is silently lost.
+		"""
+		if not self.get("enable_salary_bank_split"):
+			return
+
+		from upande_payroll.payroll_entry_utils import SPLIT_DIMENSIONS
+
+		dimension = self.get("salary_bank_split_by") or "Employee Bank"
+		# .get rather than indexing: a value outside the Select - an old record,
+		# an import - should not raise a KeyError out of validate.
+		key_column, _employee_field, label = SPLIT_DIMENSIONS.get(
+			dimension, SPLIT_DIMENSIONS["Employee Bank"]
+		)
+
+		for row in (self.get("salary_bank_accounts") or []):
+			if not row.get(key_column):
+				frappe.throw(
+					_("Row {0}: the split is by {1}, so that row needs a {1}.").format(
+						row.idx, _(label).title()
+					),
+					title=_("Incomplete Account Mapping"),
+				)
+
+
+
 
 
 def get_monthly_working_hours(company, department=None):

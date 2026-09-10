@@ -10,6 +10,15 @@ from frappe import _
 EXTRA_FILTERS = []
 
 
+# setting value -> (column on Payroll Salary Bank, Employee field, what to call
+# it when reporting somebody unmapped)
+SPLIT_DIMENSIONS = {
+	"Employee Bank": ("bank", "bank_name", "bank"),
+	"Business Unit": ("business_unit", "custom_business_unit", "business unit"),
+	"Farm": ("farm", "custom_farm", "farm"),
+}
+
+
 class PayrollEntryMixin:
 	"""Carry the extra filters into the employee query.
 
@@ -165,10 +174,21 @@ class PayrollEntryMixin:
 		if not settings.get("enable_salary_bank_split"):
 			return []
 
+		# What decides the group, and where to read it from. Employee Bank suits a
+		# company paying each staff member from an account at their own bank;
+		# Business Unit and Farm suit one where each location holds its own
+		# salaries account and the run is done once at head office, so the money
+		# has to leave the account of the place somebody works rather than the
+		# place they bank.
+		key_column, employee_field, group_label = SPLIT_DIMENSIONS.get(
+			settings.get("salary_bank_split_by") or "Employee Bank",
+			SPLIT_DIMENSIONS["Employee Bank"],
+		)
+
 		accounts = {
-			row.bank: row.payment_account
+			row.get(key_column): row.payment_account
 			for row in (settings.get("salary_bank_accounts") or [])
-			if row.bank and row.payment_account
+			if row.get(key_column) and row.payment_account
 		}
 		if not accounts:
 			return []
@@ -181,28 +201,29 @@ class PayrollEntryMixin:
 		if not employees:
 			return []
 
-		banks = frappe.get_all(
+		grouped_by = frappe.get_all(
 			"Employee", filters={"name": ("in", list(employees))},
-			fields=["name", "bank_name"],
+			fields=["name", employee_field],
 		)
 
 		by_account, unmapped = {}, set()
-		for employee in banks:
-			account = accounts.get(employee.bank_name) if employee.bank_name else None
+		for employee in grouped_by:
+			value = employee.get(employee_field)
+			account = accounts.get(value) if value else None
 			if not account:
-				# No bank on the record, or a bank nobody has given an account
-				# to. Paid from the run's own Payment Account exactly as before,
-				# rather than held back - somebody must still be paid.
+				# Nothing recorded on the employee, or a value nobody has given
+				# an account to. Paid from the run's own Payment Account exactly
+				# as before, rather than held back - somebody must still be paid.
 				unmapped.add(employee.name)
 				continue
-			by_account.setdefault((account, employee.bank_name), set()).add(employee.name)
+			by_account.setdefault((account, value), set()).add(employee.name)
 
 		groups = [
 			(account, staff, bank)
 			for (account, bank), staff in sorted(by_account.items(), key=lambda kv: kv[0][1])
 		]
 
-		# Nobody matched a configured bank, so there is nothing this can do that
+		# Nobody matched a configured group, so there is nothing this can do that
 		# the stock single entry does not already do better.
 		if not groups:
 			return []
@@ -210,14 +231,14 @@ class PayrollEntryMixin:
 		if unmapped:
 			if not self.payment_account:
 				frappe.throw(
-					_("{0} employee(s) on this run have no bank set, or bank at one with no "
-					  "company account against it, and the Payroll Entry has no Payment "
-					  "Account to fall back on.").format(len(unmapped))
+					_("{0} employee(s) on this run have no {1} set, or one with no company "
+					  "account against it, and the Payroll Entry has no Payment Account to "
+					  "fall back on.").format(len(unmapped), _(group_label))
 				)
-			groups.append((self.payment_account, unmapped, _("no bank set")))
+			groups.append((self.payment_account, unmapped, _("no {0} set").format(_(group_label))))
 
 		# One group is still returned rather than shortcut away. If everybody
-		# banks at KCB and KCB has been given the company's KCB account, that
+		# falls in one group and that group has been given an account, that
 		# account is what should pay them - falling back to the stock entry here
 		# would quietly pay them all from the run's Payment Account instead and
 		# ignore the configuration.
@@ -233,10 +254,10 @@ class PayrollEntryMixin:
 			for label, entry in created
 		)
 		frappe.msgprint(
-			_("Net pay has been split across the staff's own banks. Each entry still "
+			_("Net pay has been split across the company's accounts. Each entry still "
 			  "needs its Reference No and Date before it can be submitted."
 			  "<br><br><table class='table table-bordered'>"
-			  "<thead><tr><th>Bank</th><th>Entry</th>"
+			  "<thead><tr><th>Group</th><th>Entry</th>"
 			  "<th style='text-align:right'>Amount</th></tr></thead>"
 			  "<tbody>{0}</tbody></table>").format(rows),
 			title=_("Paid From {0} Accounts").format(len(created)),

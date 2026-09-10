@@ -56,6 +56,20 @@ def _get_slips(filters):
 		if filters.get(fieldname):
 			conditions[fieldname] = filters.get(fieldname)
 
+	# The farm is on the Employee, so it becomes a list of employees rather than a
+	# condition on the slip. Narrowing an employee already chosen rather than
+	# replacing it, so picking a farm and a person from another farm returns
+	# nothing instead of quietly ignoring one of the two filters.
+	if filters.get("farm"):
+		on_farm = frappe.get_all(
+			"Employee", filters={"custom_farm": filters.get("farm")}, pluck="name"
+		)
+		if filters.get("employee"):
+			on_farm = [e for e in on_farm if e == filters.get("employee")]
+		# An empty list would be ignored by get_all, which would widen the report
+		# instead of narrowing it, so an unmatched farm has to exclude everything.
+		conditions["employee"] = ("in", on_farm or [""])
+
 	return frappe.get_all(
 		"Salary Slip",
 		filters=conditions,

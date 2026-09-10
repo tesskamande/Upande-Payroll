@@ -16,6 +16,7 @@ exactly as it did before.
 
 import frappe
 from frappe.utils import flt
+from upande_payroll.tests.employee_fixture import new_employee
 
 COMPANY = "Karen Roses"
 RESULTS = []
@@ -125,11 +126,11 @@ def _member():
     existing = frappe.db.get_value("Employee", {"employee_name": "ZZ Gratuity Member"}, "name")
     if existing:
         return existing
-    return frappe.get_doc({
-        "doctype": "Employee", "first_name": "ZZ Gratuity", "last_name": "Member",
-        "company": COMPANY, "date_of_joining": "2015-01-01",
-        "date_of_birth": "1985-01-01", "gender": "Female", "status": "Active",
-    }).insert(ignore_permissions=True).name
+    return new_employee(
+        first_name="ZZ Gratuity", last_name="Member",
+        company=COMPANY, date_of_joining="2015-01-01",
+        date_of_birth="1985-01-01", gender="Female", status="Active",
+    ).name
 
 
 def _gratuity(employee, year, portion, annual_pay, paye_paid):

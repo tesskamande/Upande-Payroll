@@ -13,6 +13,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from upande_payroll.kenya_statutory_gross_pay import get_absence_components
+
 DOCSTATUS = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
 
 # One logical column, several possible field names. Sites differ on whether they
@@ -39,9 +41,17 @@ def build(filters, spec):
 	]
 
 	employee_components, employer_components = _components(filters, spec)
-	if not employee_components and not employer_components:
+	loan_product = filters.get("loan_product") if spec.get("loan_filter") else None
+
+	# A levy can be run either way. HELB is a component on most sites and a Loan
+	# Product on the ones that track the balance, and during a changeover it is
+	# both, so neither source is required as long as one of them is named.
+	if not (employee_components or employer_components or loan_product):
 		frappe.msgprint(
-			_("No salary component is set for {0}, so there is nothing to report.")
+			_("No salary component or loan product is set for {0}, so there is nothing to report.")
+			.format(spec["title"])
+			if spec.get("loan_filter")
+			else _("No salary component is set for {0}, so there is nothing to report.")
 			.format(spec["title"]),
 			indicator="orange",
 		)
@@ -53,7 +63,7 @@ def build(filters, spec):
 		return columns, []
 
 	return columns, _rows(filters, slips, sources, spec,
-						  employee_components, employer_components)
+						  employee_components, employer_components, loan_product)
 
 
 # ----------------------------------------------------------------------
@@ -78,7 +88,15 @@ def _components(filters, spec):
 	if spec.get("component_filter"):
 		from upande_payroll.setup import HELB_COMPONENT
 
-		chosen = filters.get("salary_component") or HELB_COMPONENT
+		# The shipped component is only assumed when nothing else was named. A
+		# company running the levy purely as a loan clears the component filter
+		# to say so, and falling back to "HELB" regardless would have put a
+		# component it does not use back into the return.
+		chosen = filters.get("salary_component")
+		if not chosen and not filters.get("loan_product"):
+			chosen = HELB_COMPONENT
+		if not chosen:
+			return set(), set()
 		return ({chosen} if frappe.db.exists("Salary Component", chosen) else set()), set()
 
 	from upande_payroll.kenya_statutory_calculator import get_statutory_components
@@ -161,7 +179,8 @@ def _slips(filters, sources):
 	)
 
 
-def _rows(filters, slips, sources, spec, employee_components, employer_components):
+def _rows(filters, slips, sources, spec, employee_components, employer_components,
+		  loan_product=None):
 	config = _company_config(filters.company)
 	details = frappe.db.sql(
 		"""
@@ -176,6 +195,8 @@ def _rows(filters, slips, sources, spec, employee_components, employer_component
 	amounts = {}
 	for row in details:
 		amounts.setdefault(row.parent, []).append(row)
+
+	loan_taken = _loan_amounts([s.name for s in slips], loan_product)
 
 	# One line per employee. Several payslips in the range add together rather
 	# than appearing separately, which a return would otherwise double count.
@@ -219,6 +240,11 @@ def _rows(filters, slips, sources, spec, employee_components, employer_component
 			elif component in employer_components:
 				line["employer_contribution"] += amount
 
+		# A loan repayment is not a Salary Detail row, so it is added here rather
+		# than found in the loop above. It counts as the employee's own
+		# contribution because that is what a levy run as a loan is.
+		line["member_contribution"] += loan_taken.get(slip.name, 0.0)
+
 		line["gross_pay"] += gross
 		line["gross_salary"] += gross
 
@@ -235,14 +261,38 @@ def _rows(filters, slips, sources, spec, employee_components, employer_component
 	return rows
 
 
+def _loan_amounts(slip_names, loan_product):
+	"""What each payslip actually repaid on that loan product.
+
+	total_payment rather than the scheduled instalment: the two thirds cap
+	writes back to it what it allowed, so it is what the employee really lost.
+	Principal alone would understate it, because a levy run as a loan charges
+	interest and the whole repayment is remitted.
+	"""
+	if not (loan_product and slip_names):
+		return {}
+
+	rows = frappe.get_all(
+		"Salary Slip Loan",
+		filters={
+			"parent": ("in", slip_names),
+			"parenttype": "Salary Slip",
+			"loan_product": loan_product,
+		},
+		fields=["parent", "total_payment"],
+	)
+	taken = {}
+	for row in rows:
+		taken[row.parent] = taken.get(row.parent, 0.0) + flt(row.total_payment)
+	return taken
+
+
 def _company_config(company):
-	basic, absence = None, set()
+	basic = None
 	if company and frappe.db.exists("Company Payroll Settings", company):
 		settings = frappe.get_cached_doc("Company Payroll Settings", company)
 		basic = settings.terminal_dues_basic_pay_component
-		absence = {
-			row.salary_component
-			for row in (settings.statutory_income_component_mapping or [])
-			if row.category == "Absence / Unpaid Deduction"
-		}
-	return {"basic_component": basic, "absence_components": absence}
+	return {
+		"basic_component": basic,
+		"absence_components": get_absence_components(company),
+	}

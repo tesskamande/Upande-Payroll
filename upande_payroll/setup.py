@@ -1,3 +1,5 @@
+import os
+
 import frappe
 from frappe import _
 
@@ -207,10 +209,10 @@ def add_to_payroll_workspace():
 	and then quietly vanish. after_migrate runs last, so putting them back here
 	is what makes them stay.
 	"""
-	if not frappe.db.exists("Workspace", WORKSPACE):
+	workspace = _ensure_payroll_workspace()
+	if not workspace:
 		return
 
-	workspace = frappe.get_doc("Workspace", WORKSPACE)
 	present = {(row.type, row.label) for row in workspace.links}
 	changed = False
 
@@ -246,6 +248,58 @@ def add_to_payroll_workspace():
 
 	if changed:
 		workspace.save(ignore_permissions=True)
+
+
+def _ensure_payroll_workspace():
+	"""Return the Payroll workspace, rebuilding it if it has gone missing.
+
+	It has gone missing twice on a working site. The workspace belongs to HRMS
+	and lives in a file inside it; when that file is absent, migrate's orphan
+	sweep deletes the record, and because a standard document is deleted with
+	its source file in developer mode the two vanish together. Every payroll
+	link goes with them - the registers, the statutory returns, the settings -
+	and the desktop icon for Payroll stops routing anywhere, because the icon
+	reads its destination from the first link of the sidebar.
+
+	Returning quietly, which is what this used to do, meant the one step that
+	could have put things back ran during that same migrate and did nothing.
+
+	HRMS's own links are not invented here. If its file is on disk the record is
+	rebuilt from it and everything returns; if it is not, a bare workspace is
+	created so this app's own cards have somewhere to live and the icon works
+	again, and HRMS restores the rest whenever its file comes back.
+	"""
+	if frappe.db.exists("Workspace", WORKSPACE):
+		return frappe.get_doc("Workspace", WORKSPACE)
+
+	path = os.path.join(
+		frappe.get_app_path("hrms"), "payroll", "workspace", "payroll", "payroll.json"
+	)
+	if os.path.exists(path):
+		from frappe.modules.import_file import import_file_by_path
+
+		import_file_by_path(path, force=True, reset_permissions=False)
+		if frappe.db.exists("Workspace", WORKSPACE):
+			print(f"Rebuilt the {WORKSPACE} workspace from HRMS's own definition")
+			return frappe.get_doc("Workspace", WORKSPACE)
+
+	doc = frappe.get_doc({
+		"doctype": "Workspace",
+		"label": WORKSPACE,
+		"title": WORKSPACE,
+		"module": WORKSPACE,
+		"app": "hrms",
+		"public": 1,
+		"type": "Workspace",
+		"icon": "accounting",
+		"sequence_id": 9.0,
+	})
+	doc.insert(ignore_permissions=True)
+	print(
+		f"The {WORKSPACE} workspace was missing and HRMS's definition is not on "
+		f"disk, so a bare one was created. HRMS's own links return when its file does."
+	)
+	return doc
 
 
 def _add_workspace_cards_to_content(workspace):
@@ -295,6 +349,7 @@ def after_migrate():
 	open_salary_structure_tables()
 	ensure_statutory_fields()
 	link_employee_bank_to_bank_doctype()
+	add_mpesa_salary_mode()
 	add_to_payroll_workspace()
 
 
@@ -441,6 +496,67 @@ def link_employee_bank_to_bank_doctype():
 			"value": value,
 			"property_type": prop_type,
 		}, is_system_generated=False)
+
+	frappe.clear_cache(doctype="Employee")
+	frappe.db.commit()
+
+
+# Salary Mode ships as Bank, Cash or Cheque. In Kenya a good part of a payroll
+# is paid to a phone, so the mode has to exist before anyone can record how an
+# employee is actually paid.
+MPESA_MODE = "M-Pesa"
+
+# A module constant so the field layout checks can see it. A field created only
+# inside a function is invisible to them, which is how custom_mpesa_number came
+# to exist on one site and ship to none.
+MPESA_FIELDS = {
+	"Employee": [
+		{
+			"fieldname": "custom_mpesa_number",
+			"label": "M-Pesa Number",
+			"fieldtype": "Data",
+			"insert_after": "salary_mode",
+			"depends_on": f'eval:doc.salary_mode=="{MPESA_MODE}"',
+			"mandatory_depends_on": f'eval:doc.salary_mode=="{MPESA_MODE}"',
+			"description": "The line the salary is sent to. Often the same as "
+						   "Mobile, but recorded separately because it is not always.",
+		}
+	]
+}
+
+
+def add_mpesa_salary_mode():
+	"""Offer M-Pesa as a Salary Mode, with the phone number it needs.
+
+	The number is its own field rather than the employee's Mobile. The two are
+	often the same and sometimes not - money goes to a spouse's line, or to a
+	second SIM kept for it - and a payroll that guessed would pay the wrong
+	person while looking correct. It appears only when the mode is M-Pesa, and
+	is required then, because a mobile payment with no number cannot be sent.
+
+	Bank Name and the rest are left showing whatever the mode is. Salary Mode is
+	blank on most employee records, so conditioning the bank fields on
+	'Bank' would hide them for everyone who has never had the mode set.
+	"""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+	# Added to whatever the field already offers rather than replaced. Written
+	# flat on every migrate, this would delete an option a company added itself
+	# - Airtel Money, a cash-in-transit house - and every employee already on it
+	# would be left holding a value the field no longer lists.
+	current = frappe.get_meta("Employee").get_field("salary_mode").options or ""
+	options = [o for o in current.split("\n")]
+	if MPESA_MODE not in options:
+		options.append(MPESA_MODE)
+		frappe.make_property_setter({
+			"doctype": "Employee",
+			"fieldname": "salary_mode",
+			"property": "options",
+			"value": "\n".join(options),
+			"property_type": "Text",
+		}, is_system_generated=False)
+
+	create_custom_fields(MPESA_FIELDS)
 
 	frappe.clear_cache(doctype="Employee")
 	frappe.db.commit()

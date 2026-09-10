@@ -9,6 +9,45 @@ from frappe.utils import flt
 EXCLUDED_FROM_CASH = ("Non-Cash Benefit", "Partially Exempt Benefit", "Non-Taxable Payment")
 
 
+# The category a company tags a component with when it is pay for time not
+# worked. Named once because the calculator, the journal, the statutory returns
+# and both KRA reports all have to agree on it - and the P9 card, which kept no
+# idea of it at all, is what happens when they each hold their own copy.
+ABSENCE_CATEGORY = "Absence / Unpaid Deduction"
+
+
+def get_absence_components(company):
+	"""Components this company has declared to be time not worked.
+
+	An empty set when nothing is mapped, so a company that has not described
+	its absence components has none subtracted rather than having a guess made
+	on its behalf.
+	"""
+	if not (company and frappe.db.exists("Company Payroll Settings", company)):
+		return set()
+	settings = frappe.get_cached_doc("Company Payroll Settings", company)
+	return {
+		row.salary_component
+		for row in (settings.statutory_income_component_mapping or [])
+		if row.category == ABSENCE_CATEGORY
+	}
+
+
+def absence_on_slip(slip_name, components):
+	"""What one payslip booked against those components."""
+	if not components:
+		return 0.0
+	total = frappe.db.sql(
+		"""
+		SELECT IFNULL(SUM(amount), 0) FROM `tabSalary Detail`
+		WHERE parent = %(slip)s AND parenttype = 'Salary Slip'
+			AND salary_component IN %(components)s
+		""",
+		{"slip": slip_name, "components": list(components)},
+	)
+	return flt(total[0][0]) if total else 0.0
+
+
 def get_income_breakdown(salary_slip, settings, is_secondary=False):
 	"""Return the two figures Kenyan statutory deductions actually need -
 	which are NOT the same as ERPNext's gross_pay:
@@ -128,7 +167,7 @@ def _mapped_amounts(salary_slip, mapping, kenya_settings):
 		if not rule:
 			continue
 		amount = flt(row.amount)
-		if rule.category == "Absence / Unpaid Deduction":
+		if rule.category == ABSENCE_CATEGORY:
 			absence_deductions += amount
 		elif rule.category == "Pension Contribution":
 			pension_contribution += amount

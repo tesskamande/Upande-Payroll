@@ -30,11 +30,22 @@ frappe.query_reports["HELB Report"] = {
 			label: __("Salary Component"),
 			fieldtype: "Link",
 			options: "Salary Component",
-			reqd: 1,
+			// Not required. A company that runs HELB as a loan rather than a
+			// deduction has no component to name, and clearing this is how it
+			// says so.
 			default: "HELB",
 			get_query() {
 				return { filters: { type: "Deduction" } };
 			},
+		},
+		{
+			fieldname: "loan_product",
+			label: __("Loan Product"),
+			fieldtype: "Link",
+			options: "Loan Product",
+			// Set this where HELB is tracked as a loan. Whatever each payslip
+			// repaid on it is added to the deduction above, so a site midway
+			// through moving from one to the other reports both.
 		},
 		{
 			fieldname: "docstatus",

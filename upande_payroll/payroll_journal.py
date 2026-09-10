@@ -2,8 +2,6 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
-ABSENCE_CATEGORY = "Absence / Unpaid Deduction"
-
 # Employee field carrying that employee's gross pay account, used when the
 # company posts gross pay Per Employee. Ships with the app, so it is a fixed
 # name rather than something each company has to point a setting at.
@@ -130,11 +128,15 @@ def _find_payroll_entry(doc):
 
 
 def _absence_components(settings):
-	return {
-		row.salary_component
-		for row in (settings.statutory_income_component_mapping or [])
-		if row.category == ABSENCE_CATEGORY
-	}
+	"""Deferred to the one place that owns this rule.
+
+	It was a fourth copy of the same set comprehension. The P9 card is what
+	happens when these drift: it kept no copy at all and reported a gross the
+	other five returns disagreed with, and nothing failed because nothing asked.
+	"""
+	from upande_payroll.kenya_statutory_gross_pay import get_absence_components
+
+	return get_absence_components(settings.company)
 
 
 # ----------------------------------------------------------------------

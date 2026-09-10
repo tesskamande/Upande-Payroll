@@ -66,6 +66,7 @@
   "payroll_remittance_accounts",
   "salary_bank_split_section",
   "enable_salary_bank_split",
+  "salary_bank_split_by",
   "salary_bank_accounts"
  ],
  "fields": [
@@ -491,16 +492,26 @@
   {
    "fieldname": "enable_salary_bank_split",
    "fieldtype": "Check",
-   "label": "Split Net Pay By Employee's Bank",
-   "description": "Make Bank Entry raises one entry per bank instead of one for everyone, so the money for KCB staff leaves the company's KCB account and Absa staff leave Absa. Employees whose bank is not listed below are paid from the Payroll Entry's own Payment Account, as they are today."
+   "label": "Split Net Pay Across Company Accounts",
+   "description": "Make Bank Entry raises one entry per account instead of one for everyone, so each group's money leaves the account that belongs to it. Anyone the table below does not cover is paid from the Payroll Entry's own Payment Account, as they are today."
+  },
+  {
+   "default": "Employee Bank",
+   "depends_on": "enable_salary_bank_split",
+   "description": "What decides which account pays somebody. Employee Bank suits a company paying from an account at each staff member's own bank. Business Unit or Farm suits one where each location holds its own salaries account and the run is done once at head office for everybody - the split then follows where the employee works, not where they bank.",
+   "fieldname": "salary_bank_split_by",
+   "fieldtype": "Select",
+   "label": "Split Net Pay By",
+   "mandatory_depends_on": "enable_salary_bank_split",
+   "options": "Employee Bank\nBusiness Unit\nFarm"
   },
   {
    "fieldname": "salary_bank_accounts",
    "fieldtype": "Table",
-   "label": "Company Account For Each Bank",
+   "label": "Company Account For Each Group",
    "options": "Payroll Salary Bank",
    "depends_on": "enable_salary_bank_split",
-   "description": "Which of the company's accounts pays the staff who bank at each bank. The Employee's Bank Name is what decides which group somebody falls in."
+   "description": "Which of the company's accounts pays each group. What decides the group is set above."
   }
  ],
  "index_web_pages_for_search": 1,

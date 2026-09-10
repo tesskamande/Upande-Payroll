@@ -8,6 +8,10 @@ from upande_payroll.statutory_reports import build
 SPEC = {
 	"title": _("HELB Report"),
 	"component_filter": True,
+	# HELB is a deduction on most sites and a Loan Product on the ones that
+	# track the balance owed. Both are summed, so a changeover reports in full
+	# rather than losing whichever half has already moved.
+	"loan_filter": True,
 	"columns": [
 		("employee_number", _("Payroll No"), "Data", 120),
 		("full_name", _("Employee"), "Data", 250),

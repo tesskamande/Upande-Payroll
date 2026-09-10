@@ -523,7 +523,25 @@ def _payable(row, as_at):
 		return flt(row.total_payment), flt(row.interest_amount)
 
 	amounts = calculate_amounts(row.loan, as_at) or {}
-	payable = flt(amounts.get("payable_amount")) or flt(row.total_payment)
+	payable = flt(amounts.get("payable_amount"))
+	if payable <= 0:
+		# Exhausted schedule: lending has nothing left to demand, but the 1/3
+		# rule can still owe a real balance loan_customizations' own
+		# _add_exhausted_schedule_loans put on this row - in principal_amount,
+		# not total_payment, since that field is what this function used to
+		# read and get zero from. row.total_payment cannot be trusted here for
+		# the same reason it cannot be trusted above: _apply_loan_cuts rewrites
+		# it on every save, so by the second save it holds last save's cut, not
+		# this period's claim. The loan itself is the only figure that survives
+		# a save unchanged.
+		try:
+			from loan_customizations.overrides.loan_repayment_override import (
+				_get_actual_outstanding,
+			)
+		except ImportError:
+			pass
+		else:
+			payable = flt(_get_actual_outstanding(row.loan))
 	return payable, flt(amounts.get("interest_amount"))
 
 

@@ -40,6 +40,32 @@ frappe.query_reports["Payroll Register"] = {
 			get_query: () => ({
 				filters: { company: frappe.query_report.get_filter_value("company") },
 			}),
+			// Pick a run and the period comes with it. Opened from the Payroll
+			// Entry's Connections the dashboard sets this filter and nothing else,
+			// so without this the dates would still read whatever the report
+			// defaulted to - the current month, not the run being looked at.
+			on_change: () => {
+				const run = frappe.query_report.get_filter_value("payroll_entry");
+				if (!run) return;
+				frappe.db
+					.get_value("Payroll Entry", run, ["company", "start_date", "end_date"])
+					.then(({ message }) => {
+						if (!message) return;
+						frappe.query_report.set_filter_value({
+							company: message.company,
+							from_date: message.start_date,
+							to_date: message.end_date,
+						});
+					});
+			},
+		},
+		{
+			fieldname: "farm",
+			label: __("Farm"),
+			fieldtype: "Link",
+			options: "Farm",
+			// Matched against the Employee's own Farm field, which holds the farm
+			// name - the same string a Farm document is named by.
 		},
 		{
 			fieldname: "employee",

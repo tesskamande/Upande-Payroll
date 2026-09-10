@@ -5,6 +5,11 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from upande_payroll.kenya_statutory_gross_pay import (
+	absence_on_slip,
+	get_absence_components,
+)
+
 DOCSTATUS = {"Draft": 0, "Submitted": 1, "Cancelled": 2}
 
 # The P10 columns that come straight from a tagged component. Anything worked
@@ -148,26 +153,12 @@ def _accumulate(slips, filters):
 
 		# Absence is time not worked, so it comes off pay rather than sitting in
 		# the deductions. Which components count is the company's own mapping.
-		line["_absence"] += _absence_on(slip.name, absence)
+		line["_absence"] += absence_on_slip(slip.name, absence)
 
 	for line in employees.values():
 		line["_retirement_cap"] = settings["retirement_cap"]
 
 	return employees
-
-
-def _absence_on(slip, absence_components):
-	if not absence_components:
-		return 0.0
-	total = frappe.db.sql(
-		"""
-		SELECT IFNULL(SUM(amount), 0) FROM `tabSalary Detail`
-		WHERE parent = %(slip)s AND parenttype = 'Salary Slip'
-			AND salary_component IN %(components)s
-		""",
-		{"slip": slip, "components": list(absence_components)},
-	)
-	return flt(total[0][0]) if total else 0.0
 
 
 def _company_settings(company):
@@ -176,19 +167,10 @@ def _company_settings(company):
 	retirement_cap = flt(frappe.db.get_single_value(
 		"Kenya Payroll Settings", "retirement_relief_cap"))
 
-	absence = set()
-	if company and frappe.db.exists("Company Payroll Settings", company):
-		settings = frappe.get_cached_doc("Company Payroll Settings", company)
-		absence = {
-			row.salary_component
-			for row in (settings.statutory_income_component_mapping or [])
-			if row.category == "Absence / Unpaid Deduction"
-		}
-
 	return {
 		"monthly_relief": monthly_relief,
 		"retirement_cap": retirement_cap,
-		"absence_components": absence,
+		"absence_components": get_absence_components(company),
 	}
 
 

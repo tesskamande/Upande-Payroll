@@ -25,8 +25,19 @@ fixtures = [
 				"custom_salary_expense_account",
 				"union_membership_section", "union_member",
 				"payroll_earnings_section", "payroll_deductions_section",
+				# Bank branch, and with it the branch code, for payroll advice
+				# and EFT files. Employee.branch is not this - that is the
+				# company's own branch, from module Setup.
+				"custom_bank_branch",
+				# M-Pesa as a Salary Mode needs the number the money goes to.
+				"custom_mpesa_number",
 			]],
 		],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "bank",
+		"filters": [["dt", "=", "Bank"], ["fieldname", "like", "custom_%"]],
 	},
 	{
 		"dt": "Custom Field",
@@ -100,6 +111,17 @@ fixtures = [
 			# field the array doesn't mention.
 			["doc_type", "in", ["Gratuity", "Leave Encashment", "Salary Component", "Salary Slip"]],
 			["property", "=", "field_order"],
+		],
+	},
+	{
+		"dt": "Property Setter",
+		"prefix": "employee_salary_mode",
+		"filters": [
+			# Only this one property on this one field. Employee's field_order is
+			# still deliberately absent - see the note on the field_order fixture.
+			["doc_type", "=", "Employee"],
+			["field_name", "=", "salary_mode"],
+			["property", "=", "options"],
 		],
 	},
 	{
@@ -408,9 +430,12 @@ regional_overrides = {
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
-# override_doctype_dashboards = {
-# 	"Task": "upande_payroll.task.get_dashboard_data"
-# }
+# The Payroll Register belongs in Connections rather than on the toolbar: it is
+# the register OF this run, and the dashboard scopes it by passing the document's
+# own name into the `payroll_entry` filter it already has.
+override_doctype_dashboards = {
+	"Payroll Entry": "upande_payroll.dashboard_overrides.get_dashboard_for_payroll_entry",
+}
 
 # exempt linked doctypes from being automatically cancelled
 #

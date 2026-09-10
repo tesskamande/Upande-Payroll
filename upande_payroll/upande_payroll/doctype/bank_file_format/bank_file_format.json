@@ -1,0 +1,165 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:format_name",
+ "creation": "2026-09-09 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "format_name",
+  "bank",
+  "company",
+  "col_fmt_1",
+  "applies_to_salary_mode",
+  "layout",
+  "disabled",
+  "file_section",
+  "title_row",
+  "include_header_row",
+  "col_fmt_2",
+  "debit_bank_account",
+  "file_name_pattern",
+  "columns_section",
+  "columns"
+ ],
+ "fields": [
+  {
+   "description": "For example \"KCB Salary Upload\".",
+   "fieldname": "format_name",
+   "fieldtype": "Data",
+   "label": "Format Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "The bank this file is sent to. The Bank Remittance report offers a format when its Bank filter matches.",
+   "fieldname": "bank",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Bank",
+   "options": "Bank",
+   "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "col_fmt_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Which employees this file covers. A mobile wallet file covers the ones paid by M-Pesa, whatever bank they hold - the Bank above is the company's, the one being instructed. Blank covers whoever holds an account at that bank, which is how an ordinary salary file works. Bank also covers employees whose Salary Mode was never set.",
+   "fieldname": "applies_to_salary_mode",
+   "fieldtype": "Select",
+   "label": "Applies To Salary Mode",
+   "options": "\nBank\nM-Pesa\nCash\nCheque"
+  },
+  {
+   "default": "Flat Table",
+   "description": "Flat Table writes a heading row then one row per employee. Record Types writes the Header rows, the Detail rows and the Trailer rows with no headings, for banks whose file is a sequence of record types rather than a table.",
+   "fieldname": "layout",
+   "fieldtype": "Select",
+   "label": "Layout",
+   "options": "Flat Table\nRecord Types",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "file_section",
+   "fieldtype": "Section Break",
+   "label": "File"
+  },
+  {
+   "description": "Optional single line written above everything else. May use the same placeholders as a Constant column.",
+   "fieldname": "title_row",
+   "fieldtype": "Data",
+   "label": "Title Row"
+  },
+  {
+   "default": "1",
+   "description": "Write the Column Headings of the Detail rows as a heading row. Off for Record Types layouts.",
+   "fieldname": "include_header_row",
+   "fieldtype": "Check",
+   "label": "Include Heading Row"
+  },
+  {
+   "fieldname": "col_fmt_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The company account the salaries are paid from. Supplies {debit_account}, {debit_bank_code} and {debit_branch_code}.",
+   "fieldname": "debit_bank_account",
+   "fieldtype": "Link",
+   "label": "Debit Bank Account",
+   "options": "Bank Account"
+  },
+  {
+   "default": "{bank} Salary Upload - {company} - {period}",
+   "description": "Name of the downloaded file, without the extension.",
+   "fieldname": "file_name_pattern",
+   "fieldtype": "Data",
+   "label": "File Name"
+  },
+  {
+   "description": "The file, column by column, in order.",
+   "fieldname": "columns_section",
+   "fieldtype": "Section Break",
+   "label": "Columns"
+  },
+  {
+   "fieldname": "columns",
+   "fieldtype": "Table",
+   "label": "Columns",
+   "options": "Bank File Column",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Bank File Format",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "idx": 2,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Payroll Manager",
+   "share": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

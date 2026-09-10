@@ -20,6 +20,7 @@ reversal when a slip is cancelled.
 
 import frappe
 from frappe.utils import flt
+from upande_payroll.tests.employee_fixture import new_employee
 
 COMPANY = "Karen Roses"
 BASE = 200000.0
@@ -86,11 +87,11 @@ def employee(name):
     existing = frappe.db.get_value("Employee", {"employee_name": name}, "name")
     if existing:
         return existing
-    return frappe.get_doc({
-        "doctype": "Employee", "first_name": name, "company": COMPANY,
-        "date_of_joining": "2026-01-01", "date_of_birth": "1990-01-01",
-        "gender": "Female", "status": "Active",
-    }).insert(ignore_permissions=True).name
+    return new_employee(
+        first_name=name, company=COMPANY,
+        date_of_joining="2026-01-01", date_of_birth="1990-01-01",
+        gender="Female", status="Active",
+    ).name
 
 
 def assign(emp, struct):

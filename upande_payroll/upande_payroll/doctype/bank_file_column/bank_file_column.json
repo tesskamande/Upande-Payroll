@@ -1,0 +1,74 @@
+{
+ "actions": [],
+ "creation": "2026-09-09 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "section",
+  "row",
+  "column_label",
+  "source",
+  "value"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "default": "Detail",
+   "description": "Detail repeats once per employee. Header and Trailer are written once, above and below.",
+   "fieldname": "section",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Section",
+   "options": "Detail\nHeader\nTrailer",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "default": "1",
+   "description": "Which line of its section this column belongs to. A bank whose file opens with two header records puts one on row 1 and the other on row 2. Detail columns on row 2 write a second line per employee.",
+   "fieldname": "row",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Row"
+  },
+  {
+   "columns": 2,
+   "description": "Heading the bank expects over this column. Leave blank for a file that has no heading row.",
+   "fieldname": "column_label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Column Heading"
+  },
+  {
+   "columns": 2,
+   "default": "Field",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Source",
+   "options": "Field\nConstant\nComposed\nRow Count\nAmount Total\nBlank",
+   "reqd": 1
+  },
+  {
+   "columns": 4,
+   "description": "Field: a column name from the Bank Remittance report, e.g. account_number. Composed: names joined by +, e.g. bank_code+branch_code. Constant: literal text, which may use {company} {currency} {period} {debit_account} {debit_bank_code} {debit_branch_code} {from_date} {to_date} {today} {count} {total}. Blank writes an empty cell, for a file that keeps a column it does not use.",
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Value"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-09 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Bank File Column",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
