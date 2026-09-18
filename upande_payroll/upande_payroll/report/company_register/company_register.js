@@ -72,7 +72,7 @@ frappe.query_reports["Company Register"] = {
 			label: __("Payslip Status"),
 			fieldtype: "Select",
 			options: "Submitted\nDraft\nCancelled",
-			default: "Submitted",
+			default: "Draft",
 			reqd: 1,
 		},
 		{

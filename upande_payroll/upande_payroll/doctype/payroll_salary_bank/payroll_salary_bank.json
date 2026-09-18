@@ -13,7 +13,6 @@
  ],
  "fields": [
   {
-   "columns": 5,
    "fieldname": "bank",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -24,7 +23,6 @@
    "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Employee Bank\""
   },
   {
-   "columns": 3,
    "depends_on": "eval:parent.salary_bank_split_by==\"Business Unit\"",
    "fieldname": "business_unit",
    "fieldtype": "Link",
@@ -34,7 +32,6 @@
    "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Business Unit\""
   },
   {
-   "columns": 3,
    "depends_on": "eval:parent.salary_bank_split_by==\"Farm\"",
    "fieldname": "farm",
    "fieldtype": "Link",
@@ -44,7 +41,6 @@
    "mandatory_depends_on": "eval:parent.salary_bank_split_by==\"Farm\""
   },
   {
-   "columns": 5,
    "fieldname": "payment_account",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -63,7 +59,6 @@
  "name": "Payroll Salary Bank",
  "owner": "Administrator",
  "permissions": [],
- "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

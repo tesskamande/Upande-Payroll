@@ -7,6 +7,47 @@ from frappe.utils import flt
 # name rather than something each company has to point a setting at.
 EMPLOYEE_EXPENSE_ACCOUNT_FIELD = "custom_salary_expense_account"
 
+# Accounting Dimension source (Company Payroll Settings.payroll_dimension_source)
+# -> the Employee field that already carries it directly. Fixed, like the
+# expense account field above: these are the two document types this dimension
+# resolves against and the custom fields HR already put on Employee for them.
+# A client naming a third dimension needs a line added here, not just a
+# Settings pick - there is no third Employee field to read yet.
+DIMENSION_EMPLOYEE_FIELD = {
+	"Farm": "custom_farm",
+	"Business Unit": "custom_business_unit",
+}
+
+
+def _dimension_fieldname(source):
+	"""The GL column this company's chosen dimension actually landed on.
+
+	Not assumed as source.lower().replace(" ", "_") - Accounting Dimension is
+	free to call its field anything, and asking it directly means a
+	differently-named dimension still resolves instead of silently posting
+	nothing."""
+	if not source:
+		return None
+	return frappe.get_cached_value("Accounting Dimension", {"document_type": source}, "fieldname")
+
+
+def _dimension_for_employee(pe, employee):
+	"""(gl_fieldname, value) for one employee, or (None, None) when the company
+	has not opted in to tagging the journal with a dimension at all.
+
+	Unlike cost centre this is never split: an employee has one Farm or one
+	Business Unit, not a percentage spread across several, so every share of
+	this employee's cost carries the same value."""
+	settings = frappe.get_cached_doc("Company Payroll Settings", pe.company)
+	source = settings.get("payroll_dimension_source")
+	employee_field = DIMENSION_EMPLOYEE_FIELD.get(source)
+	if not employee_field:
+		return None, None
+	fieldname = _dimension_fieldname(source)
+	if not fieldname:
+		return None, None
+	return fieldname, frappe.get_cached_value("Employee", employee, employee_field)
+
 
 def rewrite_payroll_journal(doc, method=None):
 	"""Rebuild the accrual Journal Entry that Payroll Entry creates.
@@ -74,19 +115,22 @@ def rewrite_payroll_journal(doc, method=None):
 def _split(bucket, account, pe, employee, structure, amount):
 	"""Add an amount to the posting, apportioned across the employee's cost centres.
 
-	The bucket is keyed on (account, cost centre) rather than the account alone.
-	Aggregating by account was what lost the cost centre: two people on
-	different farms sharing one expense account collapsed into a single figure,
-	and by the time the rows were written there was no employee left to ask, so
-	every line took the Payroll Entry's own cost centre.
+	The bucket is keyed on (account, cost centre, dimension value) rather than
+	the account alone. Aggregating by account was what lost the cost centre:
+	two people on different farms sharing one expense account collapsed into a
+	single figure, and by the time the rows were written there was no employee
+	left to ask, so every line took the Payroll Entry's own cost centre.
 
 	Where an employee's cost is split across several centres the amount is split
-	with it, so the halves land where the work was done.
+	with it, so the halves land where the work was done. The dimension value is
+	not split the same way - see _dimension_for_employee() - so every share
+	carries the same one.
 	"""
 	amount = flt(amount, 2)
 	if not account or not amount:
 		return
 
+	_, dim_value = _dimension_for_employee(pe, employee)
 	shares = _cost_centres(pe, employee, structure)
 	remaining = amount
 	last = len(shares) - 1
@@ -98,7 +142,7 @@ def _split(bucket, account, pe, employee, structure, amount):
 		remaining = flt(remaining - share, 2)
 		if not share:
 			continue
-		key = (account, centre)
+		key = (account, centre, dim_value)
 		bucket[key] = flt(bucket.get(key, 0.0) + share, 2)
 
 
@@ -310,15 +354,20 @@ def _collapse(bucket, pe, settings):
 	fallback = pe.get("custom_cost_center") or pe.get("cost_center")
 	out = {}
 	for key in bucket:
-		account = key[0]
-		centre = key[1]
+		account, centre, dim = key
 		if mode == "Do Not Split":
+			# There is no run-level fallback for the dimension the way there is
+			# for cost centre (Payroll Entry has no "dimension" field to fall
+			# back to), so the collapse this mode asks for extends to it too:
+			# nobody, not just one cost centre.
 			centre = fallback
+			dim = None
 		else:
 			root = frappe.get_cached_value("Account", account, "root_type")
 			if root not in ("Income", "Expense"):
 				centre = fallback
-		new_key = (account, centre)
+				dim = None
+		new_key = (account, centre, dim)
 		out[new_key] = flt(out.get(new_key, 0.0) + bucket[key], 2)
 	return out
 
@@ -347,23 +396,32 @@ def _apply(doc, pe, settings, debits, credits):
 	credits = _collapse(credits, pe, settings)
 	doc.set("accounts", [])
 
-	# One row per account AND cost centre. Where a company puts everybody on one
-	# cost centre this comes out exactly as it did before; where the employees
-	# carry their own, the cost lands on theirs instead of the run's.
-	for key in sorted(debits, key=lambda k: (k[0], k[1] or "")):
-		doc.append("accounts", {
-			"account": key[0], "cost_center": key[1],
+	dim_field = _dimension_fieldname(settings.get("payroll_dimension_source"))
+
+	# One row per account, cost centre AND dimension value. Where a company
+	# puts everybody on one cost centre (and posts no dimension) this comes out
+	# exactly as it did before; where the employees carry their own, the cost
+	# lands on theirs instead of the run's.
+	for key in sorted(debits, key=lambda k: (k[0], k[1] or "", k[2] or "")):
+		account, centre, dim = key
+		row = {
+			"account": account, "cost_center": centre,
 			"debit_in_account_currency": flt(debits[key], 2),
 			"credit_in_account_currency": 0,
-		})
+		}
+		if dim_field and dim:
+			row[dim_field] = dim
+		doc.append("accounts", row)
 
-	for key in sorted(credits, key=lambda k: (k[0], k[1] or "")):
-		account = key[0]
+	for key in sorted(credits, key=lambda k: (k[0], k[1] or "", k[2] or "")):
+		account, centre, dim = key
 		row = {
-			"account": account, "cost_center": key[1],
+			"account": account, "cost_center": centre,
 			"debit_in_account_currency": 0,
 			"credit_in_account_currency": flt(credits[key], 2),
 		}
+		if dim_field and dim:
+			row[dim_field] = dim
 		if account == pe.payroll_payable_account:
 			row["reference_type"] = "Payroll Entry"
 			row["reference_name"] = pe.name

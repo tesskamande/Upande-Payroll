@@ -19,7 +19,8 @@
    "in_list_view": 1,
    "label": "Salary Component",
    "options": "Salary Component",
-   "description": "Pick the deduction by the name it has on the payslip. Its account is filled in beside it. Leave blank and set the account directly for anything with no component behind it."
+   "description": "Pick the deduction by the name it has on the payslip. Its account is filled in beside it. Leave blank and set the account directly for anything with no component behind it.",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]"
   },
   {
    "columns": 3,

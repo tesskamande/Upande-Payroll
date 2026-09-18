@@ -14,23 +14,28 @@ BLANK_LABEL = " "
 
 
 def get_dashboard_for_payroll_entry(data):
-	"""Show both registers in Connections, beside the documents the run made.
+	"""Show the registers in Connections, beside the documents the run made.
 
 	The form dashboard renders reports as well as linked documents, but it
 	passes exactly one filter through: the document's own name, into
 	`data["fieldname"]`. On Payroll Entry that is already `payroll_entry`.
 
-	Both registers here carry a filter of that name, so both arrive scoped to the
-	run. The statutory returns do not - they take a company and a date range, and
-	would open on their own defaults, the current month rather than this payroll,
-	which reads as filtered when it is not. Give one of those a payroll_entry
-	filter and it belongs here too; until then it stays a toolbar button, where
-	the dates can be passed explicitly.
+	All three registers here carry a filter of that name, so each arrives
+	scoped to the run. The statutory returns do not - they take a company and
+	a date range, and would open on their own defaults, the current month
+	rather than this payroll, which reads as filtered when it is not. Give
+	one of those a payroll_entry filter and it belongs here too; until then
+	it stays a toolbar button, where the dates can be passed explicitly.
+
+	Three groups rather than two: report_links.html gives each its own
+	col-md-4, and three of those fill one row exactly, so Bank Remittance
+	sits beside the other two instead of stacking under either of them.
 	"""
 	data.setdefault("reports", []).extend(
 		[
 			{"label": _("Registers"), "items": ["Payroll Register"]},
 			{"label": BLANK_LABEL, "items": ["Company Register"]},
+			{"label": BLANK_LABEL, "items": ["Bank Remittance"]},
 		]
 	)
 	return data

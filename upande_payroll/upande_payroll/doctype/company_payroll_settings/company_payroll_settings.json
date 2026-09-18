@@ -59,6 +59,7 @@
   "payroll_journal_cost_centre",
   "column_break_je",
   "single_gross_pay_account",
+  "payroll_dimension_source",
   "liability_remittance_section",
   "enable_liability_remittance",
   "liability_remittance_payment_account",
@@ -66,7 +67,9 @@
   "payroll_remittance_accounts",
   "salary_bank_split_section",
   "enable_salary_bank_split",
+  "column_break_snpb",
   "salary_bank_split_by",
+  "salary_bank_accounts_section",
   "salary_bank_accounts"
  ],
  "fields": [
@@ -128,7 +131,8 @@
    "fieldtype": "Link",
    "label": "LTA Salary Component",
    "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "fieldname": "column_break_lta",
@@ -188,7 +192,8 @@
    "fieldname": "gratuity_salary_component",
    "fieldtype": "Link",
    "label": "Gratuity Salary Component",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "fieldname": "overtime_section",
@@ -243,7 +248,8 @@
    "fieldtype": "Link",
    "label": "Basic Pay Salary Component",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -252,7 +258,8 @@
    "fieldtype": "Link",
    "label": "Days Worked Pay Component",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -274,7 +281,8 @@
    "fieldtype": "Link",
    "label": "Notice Pay Earning Component",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -283,7 +291,8 @@
    "fieldtype": "Link",
    "label": "Notice Pay Deduction Component",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -292,7 +301,8 @@
    "fieldtype": "Link",
    "label": "PAYE Component",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -300,7 +310,8 @@
    "fieldname": "terminal_dues_asset_recovery_component",
    "fieldtype": "Link",
    "label": "Asset Recovery Component",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Deduction\"]]"
   },
   {
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
@@ -385,6 +396,13 @@
    "options": "Account"
   },
   {
+   "description": "Tags each journal line with the employee's Farm or Business Unit, alongside the cost centre. Blank posts no tag.",
+   "fieldname": "payroll_dimension_source",
+   "fieldtype": "Select",
+   "label": "Tag Journal With",
+   "options": "\nFarm\nBusiness Unit"
+  },
+  {
    "fieldname": "leave_provision_section",
    "fieldtype": "Section Break",
    "label": "Leave Provision"
@@ -432,7 +450,8 @@
    "fieldtype": "Link",
    "label": "Basic Pay Component",
    "mandatory_depends_on": "eval:doc.enable_leave_provision",
-   "options": "Salary Component"
+   "options": "Salary Component",
+   "link_filters": "[[\"Salary Component\", \"type\", \"=\", \"Earning\"]]"
   },
   {
    "depends_on": "eval:doc.enable_leave_provision",
@@ -496,14 +515,23 @@
    "description": "Make Bank Entry raises one entry per account instead of one for everyone, so each group's money leaves the account that belongs to it. Anyone the table below does not cover is paid from the Payroll Entry's own Payment Account, as they are today."
   },
   {
+   "fieldname": "column_break_snpb",
+   "fieldtype": "Column Break"
+  },
+  {
    "default": "Employee Bank",
    "depends_on": "enable_salary_bank_split",
-   "description": "What decides which account pays somebody. Employee Bank suits a company paying from an account at each staff member's own bank. Business Unit or Farm suits one where each location holds its own salaries account and the run is done once at head office for everybody - the split then follows where the employee works, not where they bank.",
+   "description": "What pays each group: their own bank, or a shared account per Business Unit or Farm.",
    "fieldname": "salary_bank_split_by",
    "fieldtype": "Select",
    "label": "Split Net Pay By",
    "mandatory_depends_on": "enable_salary_bank_split",
    "options": "Employee Bank\nBusiness Unit\nFarm"
+  },
+  {
+   "depends_on": "enable_salary_bank_split",
+   "fieldname": "salary_bank_accounts_section",
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "salary_bank_accounts",

@@ -7,16 +7,28 @@ frappe.ui.form.on("Payroll Entry", {
 			return;
 		}
 
-		// The provision values leave as it stands at the end of the payroll
-		// period, so the two belong together. Starting it from here means the
-		// dates come off the payroll run rather than being typed again, which
-		// is where a period gets mistyped and the wrong month provisioned.
-		frm.add_custom_button(
-			__("Leave Provision"),
-			() => open_leave_provision(frm),
-			__("Create")
-		);
-
+		// Only offer it where the company actually books leave provision -
+		// otherwise this button leads to a Leave Provision that has nowhere
+		// configured to post its accrual.
+		frappe.db.get_value(
+			"Company Payroll Settings",
+			frm.doc.company,
+			"enable_leave_provision"
+		).then(({ message }) => {
+			if (!message || !message.enable_leave_provision) {
+				return;
+			}
+			// The provision values leave as it stands at the end of the payroll
+			// period, so the two belong together. Starting it from here means
+			// the dates come off the payroll run rather than being typed
+			// again, which is where a period gets mistyped and the wrong
+			// month provisioned.
+			frm.add_custom_button(
+				__("Leave Provision"),
+				() => open_leave_provision(frm),
+				__("Create")
+			);
+		});
 	},
 
 	/*

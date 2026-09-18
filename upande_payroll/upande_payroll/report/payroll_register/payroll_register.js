@@ -30,7 +30,7 @@ frappe.query_reports["Payroll Register"] = {
 			label: __("Document Status"),
 			fieldtype: "Select",
 			options: ["Submitted", "Draft", "Cancelled"],
-			default: "Submitted",
+			default: "Draft",
 		},
 		{
 			fieldname: "payroll_entry",
