@@ -186,9 +186,12 @@ WORKSPACE_CARDS = [
 		"Leave Provision",
 		"Employee Tax History",
 		"CBA",
+		"Salary Review",
 	]),
 	("Kenya Statutory Reports", "Report", [
 		"Company Register",
+		"Payroll Register",
+		"Bank Remittance",
 		"National Social Security Fund",
 		"Social Health Insurance Fund",
 		"Affordable Housing Levy",
@@ -196,6 +199,8 @@ WORKSPACE_CARDS = [
 		"Kenya P9 Card Report",
 		"Kenya P10 Report",
 		"Leave Liability",
+		"Salary Review",
+		"CBA Application Log",
 	]),
 ]
 

@@ -218,16 +218,18 @@ class EmployeeSalaryAdvance(Document):
 		return settings
 
 	def _apply_policy(self, settings):
-		"""Copy the rules onto the advance as they stood when it was granted.
+		"""Copy the interest rule onto the advance as it stood when granted.
 
-		These fields are fetched for display, but they are also what the
-		schedule was calculated from. Storing them means a later change to the
-		advance type cannot silently restate the terms of an advance already
-		running.
+		Fetched for display, but also what the schedule was calculated from.
+		Storing it means a later change to the advance type cannot silently
+		restate the terms of an advance already running.
+
+		Salary Component is not one of these - it is set directly on the
+		advance itself, not carried from a type, so it is free to differ
+		between two advances of the same type and is not touched here.
 		"""
 		self.interest_method = settings.interest_method
 		self.interest_rate = settings.interest_rate
-		self.salary_component = settings.salary_component
 
 	def _validate_dates(self):
 		if getdate(self.repayment_start_date) < getdate(self.posting_date):

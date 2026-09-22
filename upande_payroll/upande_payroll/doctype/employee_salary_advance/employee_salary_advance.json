@@ -177,12 +177,12 @@
    "read_only": 1
   },
   {
-   "fetch_from": "advance_type.salary_component",
+   "description": "Deduction component the instalment appears as on the salary slip.",
    "fieldname": "salary_component",
    "fieldtype": "Link",
    "label": "Salary Component",
    "options": "Salary Component",
-   "read_only": 1
+   "reqd": 1
   },
   {
    "fieldname": "totals_section",

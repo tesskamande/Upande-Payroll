@@ -1,0 +1,217 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-20 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "employee",
+  "employee_name",
+  "company",
+  "department",
+  "col_main_1",
+  "review_type",
+  "effective_date",
+  "auto_update_basic_pay",
+  "pay_change_section",
+  "current_basic_pay",
+  "increment_amount",
+  "increment_percent",
+  "col_pay_1",
+  "proposed_basic_pay",
+  "reason_section",
+  "reason",
+  "result_section",
+  "salary_structure_assignment",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "default": "SAL-REV-.YYYY.-",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "SAL-REV-.YYYY.-",
+   "print_hide": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "bold": 1,
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.company",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_main_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "review_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Review Type",
+   "options": "Annual Review\nPromotion\nMarket Adjustment\nCorrection",
+   "reqd": 1
+  },
+  {
+   "description": "The date this new pay should start.",
+   "fieldname": "effective_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Effective Date",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "description": "Update the employee's pay as soon as this is submitted.",
+   "fieldname": "auto_update_basic_pay",
+   "fieldtype": "Check",
+   "label": "Auto Update Employee Basic Pay"
+  },
+  {
+   "fieldname": "pay_change_section",
+   "fieldtype": "Section Break",
+   "label": "Pay Change"
+  },
+  {
+   "description": "What the employee is currently earning.",
+   "fetch_from": "employee.basic_pay",
+   "fetch_if_empty": 1,
+   "fieldname": "current_basic_pay",
+   "fieldtype": "Currency",
+   "label": "Current Basic Pay",
+   "read_only": 1
+  },
+  {
+   "fieldname": "increment_amount",
+   "fieldtype": "Currency",
+   "label": "Increment Amount"
+  },
+  {
+   "fieldname": "increment_percent",
+   "fieldtype": "Percent",
+   "label": "Increment %"
+  },
+  {
+   "fieldname": "col_pay_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "New basic pay to be applied.",
+   "fieldname": "proposed_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Proposed Basic Pay"
+  },
+  {
+   "fieldname": "reason_section",
+   "fieldtype": "Section Break",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "result_section",
+   "fieldtype": "Section Break",
+   "label": "Result"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Not filled in automatically. Once you've actually set this raise up in payroll, link it here so there's a record of what it led to.",
+   "fieldname": "salary_structure_assignment",
+   "fieldtype": "Link",
+   "label": "Salary Structure Assignment",
+   "no_copy": 1,
+   "options": "Salary Structure Assignment"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Salary Review",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-20 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Salary Review",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "idx": 2,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "HR User",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "search_fields": "employee,employee_name,review_type,effective_date",
+ "show_title_field_in_link": 1,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "employee_name",
+ "track_changes": 1
+}
