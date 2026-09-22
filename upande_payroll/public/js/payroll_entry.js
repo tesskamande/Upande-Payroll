@@ -3,8 +3,6 @@
 
 frappe.ui.form.on("Payroll Entry", {
 	refresh(frm) {
-		show_setup_state(frm);
-
 		if (frm.doc.docstatus !== 1) {
 			return;
 		}
@@ -31,10 +29,6 @@ frappe.ui.form.on("Payroll Entry", {
 				__("Create")
 			);
 		});
-	},
-
-	company(frm) {
-		show_setup_state(frm);
 	},
 
 	/*
@@ -237,41 +231,5 @@ function setup_advanced_filters(frm) {
 				frm.trigger("get_employee_details");
 			},
 		});
-	});
-}
-
-
-/*
- * Says so where a company has no Company Payroll Settings.
- *
- * Every rule in this app is opted into on that record, so without one the run
- * is calculated the stock way: no Kenyan statutory deductions, no two thirds
- * cap, no advances recovered, and the journal posted by core rather than
- * rebuilt. That is the right behaviour for a site that installed the app for
- * something else - but it is indistinguishable from a working payroll until
- * somebody reads a payslip, so it is said here rather than left to be noticed.
- *
- * An intro rather than a message box: it is a statement about the company, not
- * an error, and a run that is meant to be plain should not need dismissing
- * every time it is opened.
- */
-function show_setup_state(frm) {
-	frm.set_intro();
-	const company = frm.doc.company;
-	if (!company) {
-		return;
-	}
-
-	frappe.db.exists("Company Payroll Settings", company).then((exists) => {
-		// The company can be changed again while this is in flight, which would
-		// otherwise leave the previous company's banner sitting over the new one.
-		if (exists || frm.doc.company !== company) {
-			return;
-		}
-		frm.set_intro(
-			__("{0} has no Company Payroll Settings, so this run uses ERPNext's own payroll calculation - none of the Upande Payroll rules apply to it.",
-			   [company]),
-			"orange"
-		);
 	});
 }
