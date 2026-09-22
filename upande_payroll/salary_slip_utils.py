@@ -87,6 +87,69 @@ class SalarySlipMixin:
 		if parent:
 			parent()
 
+	def email_salary_slip(self):
+		"""Send the payslip rendered by the generator its print format asks for.
+
+		HRMS attaches the slip with no print format named:
+
+		    frappe.attach_print(self.doctype, self.name, file_name=self.name, ...)
+
+		so get_print looks the generator up against a print format of None,
+		finds nothing, and settles on "wkhtmltopdf" (print_utils.py:51). It
+		stores that in form_dict before printview runs. printview then resolves
+		the real format from the DocType's Default Print Format and reads its
+		pdf_generator (printview.py:98) - but form_dict already holds an answer
+		and wins (printview.py:121), so a format set to Chrome is rendered by
+		wkhtmltopdf and the setting looks ignored.
+
+		Naming the format would fix it, but that means copying HRMS's whole
+		method - email template, PDF password, the queued send - and keeping
+		the copy in step. Seeding the same decision with the right value costs
+		one line and leaves the rest to HRMS: get_print only reads the print
+		format when form_dict has nothing to say.
+		"""
+		generator = _print_generator_for(self.doctype)
+		if not generator:
+			return super().email_salary_slip()
+
+		form_dict = frappe.local.form_dict
+		had = "pdf_generator" in form_dict
+		previous = form_dict.get("pdf_generator")
+		form_dict.pdf_generator = generator
+		try:
+			return super().email_salary_slip()
+		finally:
+			# Restored because form_dict belongs to the request, not to this
+			# slip: a payroll run emails hundreds through the same one.
+			if had:
+				form_dict.pdf_generator = previous
+			else:
+				form_dict.pop("pdf_generator", None)
+
+
+def _print_generator_for(doctype):
+	"""The PDF generator the doctype's Default Print Format asks for.
+
+	None where there is no default format, or where it names no generator -
+	both mean nobody has asked for anything, so HRMS is left alone and the
+	behaviour is exactly what it was.
+
+	A Print Format Builder (beta) format is left alone too: attach_print
+	renders those through weasyprint and never consults a generator at all, so
+	forcing one would only misreport what produced the file.
+	"""
+	print_format = frappe.get_meta(doctype).default_print_format
+	if not print_format or print_format == "Standard":
+		return None
+
+	fmt = frappe.db.get_value(
+		"Print Format", print_format,
+		["pdf_generator", "print_format_builder_beta", "disabled"], as_dict=True,
+	)
+	if not fmt or fmt.disabled or fmt.print_format_builder_beta:
+		return None
+	return fmt.pdf_generator or None
+
 
 def apply_capped_loan_repayment(doc):
 	"""Restate net pay from the repayment the two thirds rule allowed.
