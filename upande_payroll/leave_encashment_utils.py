@@ -1,6 +1,9 @@
 import frappe
 from frappe import _
 from frappe.utils import flt
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 
 
 class LeaveEncashmentMixin:
@@ -14,14 +17,14 @@ class LeaveEncashmentMixin:
 	def set_salary_structure(self):
 		# Core only needs a Salary Structure Assignment to read
 		# leave_encashment_amount_per_day, which our own calculation doesn't use.
-		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
-		if settings.enable_leave_encashment_calculation:
+		settings = payroll_settings(self.company)
+		if settings and settings.enable_leave_encashment_calculation:
 			return
 		return super().set_salary_structure()
 
 	def set_encashment_amount(self):
-		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
-		if not settings.enable_leave_encashment_calculation:
+		settings = payroll_settings(self.company)
+		if not settings or not settings.enable_leave_encashment_calculation:
 			return super().set_encashment_amount()
 
 		divisor = flt(settings.leave_encashment_divisor)

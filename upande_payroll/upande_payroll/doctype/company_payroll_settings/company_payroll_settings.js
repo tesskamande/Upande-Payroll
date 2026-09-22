@@ -20,8 +20,50 @@ frappe.ui.form.on("Company Payroll Settings", {
 		frm.set_query("liability_account", "payroll_remittance_accounts", () => ({
 			filters: { company: frm.doc.company, is_group: 0, root_type: "Liability" },
 		}));
+
+		// Each statutory category is read from one side of the payslip only, so
+		// the component list is narrowed to that side - picking the wrong one
+		// produces a row nothing ever reads. The table comes from the server so
+		// the form and the calculator cannot drift apart.
+		frappe.call("upande_payroll.kenya_statutory_gross_pay.category_component_type")
+			.then((r) => {
+				frm.__category_component_type = r.message || {};
+			});
+
+		frm.set_query("salary_component", "statutory_income_component_mapping", (doc, cdt, cdn) => {
+			const type = component_type_for(frm, locals[cdt][cdn].category);
+			return type ? { filters: { type: type } } : {};
+		});
 	},
 });
+
+frappe.ui.form.on("Statutory Income Component Mapping", {
+	category(frm, cdt, cdn) {
+		// Changing the category can move the row to the other side of the
+		// payslip, leaving a component behind that the new category will never
+		// be read against. Dropped rather than left to fail on save.
+		const row = locals[cdt][cdn];
+		const type = component_type_for(frm, row.category);
+		if (!type || !row.salary_component) {
+			return;
+		}
+
+		frappe.db.get_value("Salary Component", row.salary_component, "type").then((r) => {
+			if (r.message && r.message.type && r.message.type !== type) {
+				frappe.model.set_value(cdt, cdn, "salary_component", null);
+				frappe.show_alert({
+					message: __("{0} is read from the payslip's {1}s, so pick one of those.",
+								[row.category, type.toLowerCase()]),
+					indicator: "orange",
+				});
+			}
+		});
+	},
+});
+
+function component_type_for(frm, category) {
+	return (category && (frm.__category_component_type || {})[category]) || null;
+}
 
 frappe.ui.form.on("Payroll Remittance Account", {
 	salary_component(frm, cdt, cdn) {

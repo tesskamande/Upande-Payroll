@@ -69,14 +69,20 @@ class PayrollEntryMixin:
 	def has_bank_entries(self) -> dict[str, bool]:
 		"""Whether the two bank-entry buttons should be offered.
 
-		HRMS answers the withheld half with "is nobody flagged withheld", and
-		that flag only clears once the withheld journal is SUBMITTED. So between
-		raising the journal and posting it - which is exactly where someone sits
-		while they check the figures - the button stays live, and every further
-		click writes another draft for the same money. Nothing links the drafts
-		and each one is submittable.
+		HRMS answers the withheld half from the employee row's is_salary_withheld
+		checkbox, which is only ever set when employees are pulled into the run
+		through the ordinary "Get Employees" fetch. An amended run carries the
+		child table forward as it was and never re-runs that fetch, so the
+		checkbox goes stale - it can say "nobody withheld" while a slip on the
+		very same run still sits at status Withheld. Asking the slips directly,
+		the same way the Release dialog already does, is not fooled by that.
 
-		Asking for the journal itself instead closes that window.
+		A pending, unsubmitted withheld journal still has to hide the button
+		itself though: between raising that journal and posting it - exactly
+		where someone sits while they check the figures - the slip is still
+		Withheld, and without this check every further click would write
+		another draft for the same money. Nothing links the drafts and each
+		one is submittable.
 
 		The ordinary half now has to be re-asked rather than taken from HRMS.
 		Its query counts ANY Bank Entry referencing this run as proof the staff
@@ -90,9 +96,9 @@ class PayrollEntryMixin:
 		if result.get("has_bank_entries"):
 			result["has_bank_entries"] = bool(self.non_remittance_bank_entries())
 
-		if not result.get("has_bank_entries_for_withheld_salaries"):
-			if self.pending_withheld_bank_entry():
-				result["has_bank_entries_for_withheld_salaries"] = True
+		result["has_bank_entries_for_withheld_salaries"] = (
+			not bool(self.withheld_employees()) or bool(self.pending_withheld_bank_entry())
+		)
 		return result
 
 	def non_remittance_bank_entries(self):

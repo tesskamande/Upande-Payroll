@@ -13,6 +13,7 @@ class CompanyPayrollSettings(Document):
 		self.validate_overtime_department_working_hours()
 		self.validate_terminal_dues_notice_period_rules()
 		self.validate_statutory_income_component_mapping()
+		self.validate_payroll_dimension_source()
 		self.validate_payroll_remittance_accounts()
 
 	def validate_overtime_department_working_hours(self):
@@ -55,6 +56,17 @@ class CompanyPayrollSettings(Document):
 					)
 
 	def validate_statutory_income_component_mapping(self):
+		"""One row per component, and each one on the side its category is read from.
+
+		The calculator looks for the benefit categories in the payslip's
+		earnings and the absence and relief categories in its deductions. A row
+		pairing a category with a component from the other side is therefore
+		never reached: the company has described the component, the figure looks
+		mapped in the table, and nothing about the payslip changes. Caught here
+		because there is no later point at which it can be noticed.
+		"""
+		from upande_payroll.kenya_statutory_gross_pay import CATEGORY_COMPONENT_TYPE
+
 		seen = set()
 		for row in self.statutory_income_component_mapping or []:
 			if row.salary_component in seen:
@@ -63,6 +75,52 @@ class CompanyPayrollSettings(Document):
 					f"Statutory Income Component Mapping (row {row.idx})."
 				)
 			seen.add(row.salary_component)
+
+			# .get, not indexing: a category outside the Select - an older
+			# record, an import - is left alone rather than raising here.
+			expected = CATEGORY_COMPONENT_TYPE.get(row.category)
+			if not expected or not row.salary_component:
+				continue
+
+			actual = frappe.get_cached_value("Salary Component", row.salary_component, "type")
+			if actual and actual != expected:
+				frappe.throw(
+					_("Row {0}: {1} is {2} category, which is read from the payslip's "
+					  "{3}s - but '{4}' is {5}. Mapped this way the row is never read "
+					  "and the component is treated as ordinary pay.").format(
+						row.idx, frappe.bold(row.category), expected.lower(),
+						expected.lower(), row.salary_component, actual.lower()),
+					title=_("Component On The Wrong Side"),
+				)
+
+	def validate_payroll_dimension_source(self):
+		"""Tagging the journal needs an Accounting Dimension to tag it with.
+
+		The journal asks Accounting Dimension for the GL column to write the
+		Farm or Business Unit into. Where the company has never created that
+		dimension there is no column, so the setting is honoured by posting
+		nothing - the journal balances, every figure is right, and the tag the
+		company asked for is simply absent from every line. Said here, on the
+		form where the pick is made, rather than left to be noticed in the GL.
+		"""
+		source = self.get("payroll_dimension_source")
+		if not source:
+			return
+
+		dimension = frappe.db.get_value(
+			"Accounting Dimension", {"document_type": source}, ["name", "disabled"], as_dict=True
+		)
+		if dimension and not dimension.disabled:
+			return
+
+		frappe.msgprint(
+			_("There is no {0} Accounting Dimension{1}, so nothing can carry {0} onto "
+			  "the journal lines. The payroll journal will post correctly but untagged "
+			  "until one is created.").format(
+				frappe.bold(source), _(" in use") if dimension else ""),
+			title=_("Journal Will Not Be Tagged"),
+			indicator="orange",
+		)
 	def validate_payroll_remittance_accounts(self):
 		"""Resolve each row to an account, then allow only one row per account.
 
@@ -136,10 +194,35 @@ class CompanyPayrollSettings(Document):
 
 
 
+def payroll_settings(company):
+	"""This company's Company Payroll Settings, or None where it has none.
+
+	Every feature in this app is opted into per company, on this record. A
+	company with no record has opted into none of them, which is the ordinary
+	state of things on a site that installed the app for one doctype and runs
+	its payroll the stock way.
+
+	Loading the record unguarded turned that into a crash. Salary Slip goes
+	through this app's regional override whatever the site installed it for, so
+	on such a site the first payroll run died with "Company Payroll Settings
+	<company> not found" and no slips could be made at all - for a company that
+	had never asked this app to calculate anything.
+
+	So: no record means every rule here stands down and core is left to do what
+	it did before the app arrived. Callers treat None the same way they treat
+	an enable flag that is switched off.
+	"""
+	if not company or not frappe.db.exists("Company Payroll Settings", company):
+		return None
+	return frappe.get_cached_doc("Company Payroll Settings", company)
+
+
 def get_monthly_working_hours(company, department=None):
 	"""Return the effective monthly working hours for a department, falling back
 	to the default configured on Company Payroll Settings for that company."""
-	settings = frappe.get_cached_doc("Company Payroll Settings", company)
+	settings = payroll_settings(company)
+	if not settings:
+		return None
 
 	if department:
 		for row in settings.overtime_department_working_hours or []:
@@ -153,7 +236,9 @@ def get_notice_days(company, years_worked):
 	"""Return notice days for the given tenure: the Notice Period Rule whose
 	[Minimum, Maximum) Years of Service range contains years_worked. A blank
 	Maximum Years of Service is the open-ended top tier."""
-	settings = frappe.get_cached_doc("Company Payroll Settings", company)
+	settings = payroll_settings(company)
+	if not settings:
+		return 0
 	years_worked = flt(years_worked)
 
 	for row in settings.terminal_dues_notice_period_rules or []:

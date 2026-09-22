@@ -1,6 +1,9 @@
 import frappe
 from frappe import _
 from frappe.utils import cint, add_days, add_to_date, flt, getdate
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 
 
 def calculate_gratuity(doc, method=None):
@@ -16,7 +19,10 @@ def calculate_gratuity(doc, method=None):
 	  years (Gratuity PAYE Recent Years), with anything older bucketed into
 	  one row, per KRA's gratuity PAYE-spreading practice.
 	"""
-	settings = frappe.get_cached_doc("Company Payroll Settings", doc.company)
+	settings = payroll_settings(doc.company)
+	if not settings:
+		return
+
 	if not settings.enable_gratuity_calculation:
 		return
 

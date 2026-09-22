@@ -1,6 +1,9 @@
 import frappe
 from frappe import _
 from frappe.utils import flt
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 
 # Employee field carrying that employee's gross pay account, used when the
 # company posts gross pay Per Employee. Ships with the app, so it is a fixed
@@ -38,8 +41,8 @@ def _dimension_for_employee(pe, employee):
 	Unlike cost centre this is never split: an employee has one Farm or one
 	Business Unit, not a percentage spread across several, so every share of
 	this employee's cost carries the same value."""
-	settings = frappe.get_cached_doc("Company Payroll Settings", pe.company)
-	source = settings.get("payroll_dimension_source")
+	settings = payroll_settings(pe.company)
+	source = settings.get("payroll_dimension_source") if settings else None
 	employee_field = DIMENSION_EMPLOYEE_FIELD.get(source)
 	if not employee_field:
 		return None, None
@@ -77,7 +80,20 @@ def rewrite_payroll_journal(doc, method=None):
 		return
 
 	pe = frappe.get_doc("Payroll Entry", payroll_entry)
-	settings = frappe.get_cached_doc("Company Payroll Settings", pe.company)
+	settings = payroll_settings(pe.company)
+	# A company with no settings has described no accounts and no rules, so
+	# there is nothing to rebuild the entry from. Core's own journal - the one
+	# it posted before this app was installed - is left exactly as it is.
+	if not settings:
+		return
+
+	# A company can want every other Company Payroll Settings rule (statutory
+	# calculation, overtime, deduction caps...) while building this one journal
+	# itself, typically with a Server Script of its own. Gross Pay Account
+	# Method left blank is that company's way of saying so - the same way
+	# Tag Journal With left blank already means "tag nothing" on this page.
+	if not settings.gross_pay_account_method:
+		return
 
 	slips = frappe.get_all(
 		"Salary Slip",

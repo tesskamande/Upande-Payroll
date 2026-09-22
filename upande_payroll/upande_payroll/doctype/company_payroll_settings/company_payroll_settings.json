@@ -369,14 +369,14 @@
    "label": "Payroll Journal Entry"
   },
   {
-   "description": "Where salaries land in the journal. Per Salary Component uses the account on each component, Per Employee uses the one on each employee's record, Single Account puts everything in one place.",
+   "description": "Where salaries land in the journal. Per Salary Component uses the account on each component, Per Employee uses the one on each employee's record, Single Account puts everything in one place. Blank leaves the whole journal to another script.",
    "fieldname": "gross_pay_account_method",
    "fieldtype": "Select",
    "label": "Gross Pay Account Method",
-   "options": "Per Salary Component\nPer Employee\nSingle Account",
-   "reqd": 1
+   "options": "\nPer Salary Component\nPer Employee\nSingle Account"
   },
   {
+   "depends_on": "eval:doc.gross_pay_account_method",
    "fieldname": "payroll_journal_cost_centre",
    "fieldtype": "Select",
    "label": "Split Journal by Cost Centre",
@@ -396,6 +396,7 @@
    "options": "Account"
   },
   {
+   "depends_on": "eval:doc.gross_pay_account_method",
    "description": "Tags each journal line with the employee's Farm or Business Unit, alongside the cost centre. Blank posts no tag.",
    "fieldname": "payroll_dimension_source",
    "fieldtype": "Select",

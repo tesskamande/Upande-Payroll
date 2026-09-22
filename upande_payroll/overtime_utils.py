@@ -3,6 +3,7 @@ from frappe.utils import flt
 
 from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
 	get_monthly_working_hours,
+	payroll_settings,
 )
 
 
@@ -27,8 +28,8 @@ class OvertimeSlipMixin:
 	"""
 
 	def on_submit(self):
-		settings = frappe.get_cached_doc("Company Payroll Settings", self.company)
-		if not settings.enable_overtime_calculation:
+		settings = payroll_settings(self.company)
+		if not settings or not settings.enable_overtime_calculation:
 			return super().on_submit()
 		self._compute_overtime(settings)
 

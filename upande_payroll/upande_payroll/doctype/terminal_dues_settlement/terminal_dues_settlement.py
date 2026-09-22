@@ -5,12 +5,14 @@ from frappe.utils import add_days, date_diff, flt, getdate
 
 from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
 	get_notice_days,
+	payroll_settings,
 )
 
 
 class TerminalDuesSettlement(Document):
 
 	def validate(self):
+		self._require_settings()
 		self._validate_employee_status()
 		self._validate_payroll_period()
 		self._calc_years_worked()
@@ -42,6 +44,21 @@ class TerminalDuesSettlement(Document):
 	# ------------------------------------------------------------------
 	# Validation guards
 	# ------------------------------------------------------------------
+
+	def _require_settings(self):
+		"""Unlike the hooks this app puts on core doctypes, this one cannot
+		stand down: every figure on the settlement - the daily rate, the notice
+		rule, the accounts the journal posts to - is read from the settings. So
+		say which record is missing, rather than letting seven separate reads
+		fail one at a time with "not found".
+		"""
+		if not payroll_settings(self.company):
+			frappe.throw(
+				_("{0} has no Company Payroll Settings, so terminal dues cannot be "
+				  "worked out. Create the record for this company first.")
+					.format(frappe.bold(self.company or "")),
+				title=_("Company Not Set Up For Payroll"),
+			)
 
 	def _validate_employee_status(self):
 		if not self.employee:

@@ -6,6 +6,9 @@ from upande_payroll.kenya_statutory_gross_pay import get_income_breakdown
 from upande_payroll.upande_payroll.doctype.deferred_deduction.deferred_deduction import (
 	get_outstanding,
 )
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 
 # Employment Act 2007 s.19(3): total deductions may not exceed two thirds of
 # wages. The fraction is in the statute, not a company policy choice, so it is
@@ -42,7 +45,10 @@ def apply_deduction_cap(doc, method=None):
 	settled on submit. All this pass leaves behind is the intent, in the slip's
 	own two tables.
 	"""
-	settings = frappe.get_cached_doc("Company Payroll Settings", doc.company)
+	settings = payroll_settings(doc.company)
+	if not settings:
+		return
+
 	if not settings.enable_one_third_rule:
 		_clear(doc)
 		return

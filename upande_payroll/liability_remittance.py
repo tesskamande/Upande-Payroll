@@ -21,6 +21,9 @@ one under Asset or Expense is not - so nothing has to be mapped by hand.
 """
 
 import frappe
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 from frappe import _
 from frappe.database import savepoint
 from frappe.utils import flt, get_link_to_form
@@ -52,8 +55,8 @@ def create_remittance_entries(doc, method=None):
 	if not pe:
 		return
 
-	settings = frappe.get_cached_doc("Company Payroll Settings", pe.company)
-	if not settings.get("enable_liability_remittance"):
+	settings = payroll_settings(pe.company)
+	if not settings or not settings.get("enable_liability_remittance"):
 		return
 
 	default_bank = settings.get("liability_remittance_payment_account")

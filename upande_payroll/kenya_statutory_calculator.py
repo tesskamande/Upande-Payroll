@@ -2,6 +2,9 @@ import frappe
 from frappe.utils import flt, getdate
 
 from upande_payroll.kenya_statutory_gross_pay import get_income_breakdown
+from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
+	payroll_settings,
+)
 
 
 def apply_regional_deductions(doc):
@@ -11,7 +14,10 @@ def apply_regional_deductions(doc):
 	``apply_regional_deductions`` extension point - not a doc_event, since
 	this is exactly the case that extension point exists for.
 
-	Three levels of gating, narrowest last:
+	Four levels of gating, narrowest last:
+	  0. A Company Payroll Settings record existing at all. A company with none
+	     has opted into nothing, so core is left to calculate the slip the way
+	     it did before this app was installed.
 	  1. Kenya Payroll Settings.enabled - national kill-switch.
 	  2. Company Payroll Settings.enable_taxable_income_calculation - the
 	     per-company opt-in every other feature in this app also uses.
@@ -21,7 +27,12 @@ def apply_regional_deductions(doc):
 	     run through the same company payroll without being deducted, while
 	     regular staff on a structure that does list them get the full set.
 	"""
-	settings = frappe.get_cached_doc("Company Payroll Settings", doc.company)
+	settings = payroll_settings(doc.company)
+	if not settings:
+		# Nothing to strip either: with no settings this app has never put a
+		# component on this company's slips.
+		return
+
 	if not settings.enable_taxable_income_calculation:
 		doc.custom_personal_relief_method = ""
 		_remove_managed_components(doc, settings)

@@ -16,6 +16,30 @@ EXCLUDED_FROM_CASH = ("Non-Cash Benefit", "Partially Exempt Benefit", "Non-Taxab
 ABSENCE_CATEGORY = "Absence / Unpaid Deduction"
 
 
+# Which side of the payslip each category is read from. Every category is
+# looked for on one side only - the benefit categories walk ``earnings``, the
+# relief and absence categories walk ``deductions`` - so a component mapped to
+# a category belonging to the other side is never seen, and the mapping does
+# nothing at all without ever saying so. Kept beside the categories themselves
+# because this table is not a separate rule: it is a reading of the loop below.
+CATEGORY_COMPONENT_TYPE = {
+	"Non-Cash Benefit": "Earning",
+	"Partially Exempt Benefit": "Earning",
+	"Non-Taxable Payment": "Earning",
+	ABSENCE_CATEGORY: "Deduction",
+	"Pension Contribution": "Deduction",
+	"Mortgage Interest Relief": "Deduction",
+	"Post-Retirement Medical Fund": "Deduction",
+	"Insurance Premium": "Deduction",
+}
+
+
+@frappe.whitelist()
+def category_component_type():
+	"""The same table, for the form: it filters the component link per row."""
+	return CATEGORY_COMPONENT_TYPE
+
+
 def get_absence_components(company):
 	"""Components this company has declared to be time not worked.
 
