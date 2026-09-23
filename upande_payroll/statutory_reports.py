@@ -25,6 +25,8 @@ IDENTITY_SOURCES = {
 	"nssf_no": ("nssf_no", "custom_nssf_number", "nssf_number"),
 	"sha_no": ("sha_no", "shif_no", "custom_shif_number", "custom_nhif_number"),
 	"voluntary": ("nssf_voluntary", "custom_is_nssf_voluntary"),
+	"identity_type": ("custom_identity_type", "identity_type"),
+	"phone": ("cell_number", "custom_phone", "phone"),
 }
 
 

@@ -105,17 +105,26 @@ def _loan_rows(slip_names):
 
 	total_payment is the figure to read: the two thirds rule writes back to it
 	what it allowed, so it is what the employee really lost - not the scheduled
-	instalment. The scheduled amount and what could not be taken are carried
-	alongside it for the columns that show the shortfall.
+	instalment. The scheduled amount is carried alongside it for the column
+	that shows the shortfall.
+
+	custom_scheduled_payment belongs to loan_customizations, not this app - a
+	site running upande_payroll without it (Salary Review only, no loans at
+	all) has no such column on Salary Slip Loan, and asking for it unguarded
+	turned this report into an "Unknown column" error for every company on
+	that site, loans or not.
 	"""
+	fields = [
+		"parent", "loan", "loan_product", "total_payment",
+		"principal_amount", "interest_amount",
+	]
+	if frappe.db.has_column("Salary Slip Loan", "custom_scheduled_payment"):
+		fields.append("custom_scheduled_payment")
+
 	return frappe.get_all(
 		"Salary Slip Loan",
 		filters={"parent": ("in", slip_names), "parenttype": "Salary Slip"},
-		fields=[
-			"parent", "loan", "loan_product", "total_payment",
-			"principal_amount", "interest_amount",
-			"custom_scheduled_payment", "custom_deferred_amount", "custom_arrears_deferred",
-		],
+		fields=fields,
 	)
 
 

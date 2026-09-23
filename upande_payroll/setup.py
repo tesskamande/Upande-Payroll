@@ -490,9 +490,24 @@ def link_employee_bank_to_bank_doctype():
 	Only the field type and its target change. bank_ac_no stays free text,
 	because an account number is genuinely per employee.
 	"""
+	# Bank is ERPNext's, and hooks.py declares no required_apps, so nothing
+	# guarantees it is here. Without it there is nothing to link to.
+	if not frappe.db.exists("DocType", "Bank"):
+		return
+
+	# Options before fieldtype, and the order is the whole point.
+	# make_property_setter validates the doctype as each one is inserted
+	# (validate_fields_for_doctype defaults True), so writing fieldtype first
+	# leaves Employee holding a Link with nothing to link to for as long as it
+	# takes to insert the next row - and DocType refuses that outright:
+	# "Employee: Options required for Link or Table type field Bank Name".
+	# Nobody saw it here because a site that already has the options setter
+	# keeps it while only fieldtype is replaced; it is the first install on a
+	# new site that has neither, and that install then aborts. This order also
+	# repairs a site left half-converted by the old one.
 	for prop, value, prop_type in (
-		("fieldtype", "Link", "Select"),
 		("options", "Bank", "Text"),
+		("fieldtype", "Link", "Select"),
 	):
 		frappe.make_property_setter({
 			"doctype": "Employee",

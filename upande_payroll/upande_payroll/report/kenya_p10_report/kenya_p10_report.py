@@ -24,8 +24,10 @@ TAGGED = [
 	("Lump Sum Payment", "lump_sum_payment"),
 	("Other Allowance", "other_allowance"),
 	("Value of Car Benefit", "value_of_car_benefit"),
+	("Value of Meals", "value_of_meals"),
 	("Other Non Cash Benefits", "other_non_cash_benefits"),
 	("Pension Contribution", "pension_contribution"),
+	("Post Retirement Medical Fund", "post_retirement_medical_fund"),
 	("NSSF Contribution", "nssf_contribution"),
 	("Mortgage Interest", "mortgage_interest"),
 	("Affordable Housing Levy", "affordable_housing_levy"),
@@ -79,7 +81,8 @@ def _get_slips(filters):
 	return frappe.db.sql(
 		"""
 		SELECT ss.name, ss.employee, ss.employee_name, ss.gross_pay,
-			ss.custom_tax_charged, ss.custom_personal_relief_utilized, {pin}
+			ss.custom_tax_charged, ss.custom_personal_relief_utilized, {pin},
+			e.custom_is_secondary_employment
 		FROM `tabSalary Slip` ss
 		INNER JOIN `tabEmployee` e ON e.name = ss.employee
 		WHERE {conditions}
@@ -130,6 +133,10 @@ def _accumulate(slips, filters):
 				"tax_id": slip.tax_id,
 				"employee_name": slip.employee_name,
 				"residence_status": "Resident",
+				"type_of_employee": (
+					"Secondary Employee" if slip.custom_is_secondary_employment
+					else "Primary Employee"
+				),
 				"total_gross_pay": 0.0,
 				"tax_payable": 0.0,
 				"monthly_personal_relief": 0.0,
@@ -184,7 +191,7 @@ def _derive(employees):
 		line["total_gross_pay"] = line["total_cash_pay"]
 
 		line["total_non_cash_pay"] = (
-			line["value_of_car_benefit"] + line["other_non_cash_benefits"]
+			line["value_of_car_benefit"] + line["value_of_meals"] + line["other_non_cash_benefits"]
 		)
 		line["benefit_status"] = (
 			"Benefit Given" if line["total_non_cash_pay"] > 0 else "Benefit Not Given"
@@ -216,6 +223,8 @@ def get_columns():
 		 "fieldtype": "Data", "width": 200},
 		{"fieldname": "residence_status", "label": _("Residence Status"),
 		 "fieldtype": "Data", "width": 130},
+		{"fieldname": "type_of_employee", "label": _("Type of Employee"),
+		 "fieldtype": "Data", "width": 150},
 		money("basic_salary", "Basic Salary"),
 		money("housing_allowance", "Housing Allowance"),
 		money("transport_allowance", "Transport Allowance"),
@@ -228,11 +237,13 @@ def get_columns():
 		{"fieldname": "benefit_status", "label": _("Benefit Status"),
 		 "fieldtype": "Data", "width": 150},
 		money("value_of_car_benefit", "Value of Car Benefit", 170),
+		money("value_of_meals", "Value of Meals", 150),
 		money("other_non_cash_benefits", "Other Non Cash Benefits", 180),
 		money("total_non_cash_pay", "Total Non Cash Pay", 160),
 		money("total_gross_pay", "Total Gross Pay"),
 		money("30_percent_of_cash_pay", "30 Percent of Cash Pay", 170),
 		money("pension_contribution", "Pension Contribution", 170),
+		money("post_retirement_medical_fund", "Post Retirement Medical Fund", 200),
 		money("nssf_contribution", "NSSF Contribution", 160),
 		money("actual_contribution", "Actual Contribution", 160),
 		money("permissible_limit", "Permissible Limit", 150),

@@ -116,7 +116,7 @@
    "name": "Salary Component-p10a_tax_deduction_card_type",
    "no_copy": 0,
    "non_negative": 0,
-   "options": "\nBasic Salary\nHousing Allowance\nTransport Allowance\nLeave Pay\nOvertime\nDirectors Fee\nLump Sum Payment\nOther Allowance\nTotal Cash Pay\nValue of Car Benefit\nValue of Meals\nValue of Housing\nValue of other Benefit\nOther Non Cash Benefits\nTotal Gross Pay\n30 Percent of Cash Pay\nPension Contribution\nNSSF Contribution\nActual Contribution\nPermissible Limit\nMortgage Interest\nAffordable Housing Levy\nSHIF\nAmount of Benefit\nTaxable Pay\nTax Payable\nMonthly Personal Relief\nAmount of Insurance\nPAYE Tax\nSelf Assessed PAYE Tax",
+   "options": "\nBasic Salary\nHousing Allowance\nTransport Allowance\nLeave Pay\nOvertime\nDirectors Fee\nLump Sum Payment\nOther Allowance\nTotal Cash Pay\nValue of Car Benefit\nValue of Meals\nValue of Housing\nValue of other Benefit\nOther Non Cash Benefits\nTotal Gross Pay\n30 Percent of Cash Pay\nPension Contribution\nPost Retirement Medical Fund\nNSSF Contribution\nActual Contribution\nPermissible Limit\nMortgage Interest\nAffordable Housing Levy\nSHIF\nAmount of Benefit\nTaxable Pay\nTax Payable\nMonthly Personal Relief\nAmount of Insurance\nPAYE Tax\nSelf Assessed PAYE Tax",
    "owner": "Administrator",
    "permlevel": 0,
    "placeholder": null,
