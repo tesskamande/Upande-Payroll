@@ -23,6 +23,7 @@ fixtures = [
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
 				"custom_opt_out_of_housing_levy",
 				"custom_salary_expense_account",
+				"custom_personal_relief_opening_balance",
 				"union_membership_section", "union_member",
 				"payroll_earnings_section", "payroll_deductions_section",
 				# Bank branch, and with it the branch code, for payroll advice

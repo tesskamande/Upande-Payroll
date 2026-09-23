@@ -298,6 +298,24 @@ def compute_insurance_relief(premium, kenya_settings):
 	return flt(relief, 2)
 
 
+def _relief_opening_balance(salary_slip):
+	"""Where a starting relief balance comes from when there is no slip to
+	chain from at all - January's fresh year, or a company migrating in
+	with no history here.
+
+	The Salary Slip's own field wins if someone typed a figure in directly -
+	a one-off correction on a single slip. Otherwise Employee.custom_personal_
+	relief_opening_balance, set once ahead of time rather than per payslip:
+	a company migrating in 2,000 employees at once needs to seed all of them
+	before the first payroll run here, not open every Draft slip by hand."""
+	seeded = flt(salary_slip.get("custom_personal_relief_brought_forward"))
+	if seeded:
+		return seeded
+	return flt(frappe.db.get_value(
+		"Employee", salary_slip.employee, "custom_personal_relief_opening_balance"
+	))
+
+
 def compute_personal_relief(salary_slip, settings, kenya_settings, taxable_income):
 	"""Returns {gross_paye, relief_utilized}. Flat Monthly: relief is simply
 	capped at whatever's owed that month. Carry Forward: unused relief from
@@ -337,10 +355,10 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 	joined_this_year = bool(doj and doj.year == end_date.year)
 
 	# Brought-forward relief: chained from the previous submitted/draft slip's
-	# carried-forward value. January (or no prior slip) falls back to a
-	# manual seed field, for cases needing a starting balance.
+	# carried-forward value. January (or no prior slip at all) falls back to
+	# a starting balance instead, for cases needing one.
 	if current_month == 1 and not joined_this_year:
-		relief_bf = flt(salary_slip.get("custom_personal_relief_brought_forward"))
+		relief_bf = _relief_opening_balance(salary_slip)
 	else:
 		prev = frappe.db.sql(
 			"""
@@ -352,7 +370,15 @@ def _compute_relief_carry_forward(salary_slip, kenya_settings, gross_paye, month
 			(salary_slip.employee, salary_slip.end_date),
 			as_dict=True,
 		)
-		relief_bf = flt(prev[0].custom_personal_relief_carried_forward) if prev else 0.0
+		if prev:
+			relief_bf = flt(prev[0].custom_personal_relief_carried_forward)
+		else:
+			# No prior slip exists in this system at all - a client migrating
+			# mid-year (payroll for the months before this one ran outside
+			# upande_payroll entirely) has no chain to read from here, not
+			# because nobody has any relief brought forward, but because this
+			# is genuinely the first slip this system has ever seen for them.
+			relief_bf = _relief_opening_balance(salary_slip)
 
 	relief_available = relief_bf + monthly_relief
 	relief_utilized = min(gross_paye, relief_available)

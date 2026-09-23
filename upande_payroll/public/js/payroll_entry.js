@@ -29,6 +29,23 @@ frappe.ui.form.on("Payroll Entry", {
 				__("Create")
 			);
 		});
+
+		// For a company migrating onto this app mid-year: their first run
+		// here has no prior slip to chain Carry Forward relief from, so each
+		// employee's real brought-forward figure has to be seeded by hand.
+		// Offered on every run rather than only the first, since nothing
+		// here can tell "first run for this client" from "just another run" -
+		// downloading and re-uploading an unchanged template does nothing.
+		frm.add_custom_button(
+			__("Download Relief Brought Forward Template"),
+			() => download_relief_template(frm),
+			__("Sheet")
+		);
+		frm.add_custom_button(
+			__("Import Relief Brought Forward"),
+			() => import_relief_brought_forward(frm),
+			__("Sheet")
+		);
 	},
 
 	/*
@@ -159,6 +176,55 @@ function open_release_dialog(frm) {
 			},
 		});
 		dialog.show();
+	});
+}
+
+/*
+ * Personal Relief Brought Forward, in and out - for seeding a migrating
+ * client's first run here, where there is no prior slip to chain Carry
+ * Forward relief from at all.
+ */
+
+function download_relief_template(frm) {
+	open_url_post(
+		"/api/method/upande_payroll.relief_brought_forward.download_template",
+		{ payroll_entry: frm.doc.name }
+	);
+}
+
+function import_relief_brought_forward(frm) {
+	new frappe.ui.FileUploader({
+		as_dataurl: false,
+		allow_multiple: false,
+		restrictions: { allowed_file_types: [".csv", ".xlsx", ".xlsm"] },
+		on_success(file_doc) {
+			frappe.call({
+				method: "upande_payroll.relief_brought_forward.import_relief_brought_forward",
+				args: { payroll_entry: frm.doc.name, file_url: file_doc.file_url },
+				freeze: true,
+				freeze_message: __("Setting relief brought forward..."),
+				callback({ message }) {
+					if (!message) return;
+					const lines = [
+						__("{0} Draft slip(s) updated.", [message.updated]),
+					];
+					if (message.unmatched_count) {
+						lines.push(
+							__("{0} row(s) matched no Draft slip on this run and were skipped:", [
+								message.unmatched_count,
+							]) +
+								"<br>" +
+								frappe.utils.escape_html(message.unmatched.join("; "))
+						);
+					}
+					frappe.msgprint({
+						title: __("Sheet Read"),
+						message: lines.join("<br><br>"),
+						indicator: message.unmatched_count ? "orange" : "green",
+					});
+				},
+			});
+		},
 	});
 }
 
