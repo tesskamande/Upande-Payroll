@@ -350,10 +350,16 @@ def _add_workspace_cards_to_content(workspace):
 
 
 def after_migrate():
+	# First, and it has to be. A site left half-converted by the old order -
+	# bank_name a Link with no options - fails validation on any touch of
+	# Employee at all, and creating a custom field is a touch. Run any later
+	# and ensure_statutory_fields dies before the repair it needs is reached,
+	# which is how a site that failed once could never install again.
+	link_employee_bank_to_bank_doctype()
+
 	ensure_statutory_components()
 	open_salary_structure_tables()
 	ensure_statutory_fields()
-	link_employee_bank_to_bank_doctype()
 	add_mpesa_salary_mode()
 	add_to_payroll_workspace()
 
