@@ -70,6 +70,23 @@ def get_cba_minimum(job_category, company=None):
 	return flt(row.entry_minimum) or flt(row.current_basic_pay)
 
 
+def get_cba_agreed_rate(cba_name, job_category):
+	"""The rate this CBA moves an existing category to - what a promotion (or
+	an ordinary raise) lands someone on. Distinct from get_cba_minimum: that one
+	is the entry-level floor a new hire is validated against, and does not move
+	just because existing staff are being raised or promoted into a category.
+	"""
+	row = frappe.db.get_value(
+		"CBA Pay Table",
+		{"parent": cba_name, "job_category": job_category},
+		["current_basic_pay", "new_basic_pay"],
+		as_dict=True,
+	)
+	if not row:
+		return None
+	return flt(row.new_basic_pay) or flt(row.current_basic_pay)
+
+
 def pay_rules(cba):
 	"""What each Job Category in the pay table is worth, keyed by category."""
 	rules = {
@@ -386,8 +403,8 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 				continue
 
 			previous_pay = flt(emp.basic_pay)
-			minimum = get_cba_minimum(to_category, co)
-			new_pay = max(previous_pay, flt(minimum)) if minimum is not None else previous_pay
+			agreed_rate = get_cba_agreed_rate(cba.name, to_category)
+			new_pay = max(previous_pay, flt(agreed_rate)) if agreed_rate is not None else previous_pay
 
 			moved.append({
 				"employee": emp.name, "employee_name": emp.employee_name,

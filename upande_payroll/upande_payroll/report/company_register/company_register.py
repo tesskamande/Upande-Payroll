@@ -141,7 +141,34 @@ def _totals(slips, buckets, filters):
 			target[row.salary_component].get(group, 0.0) + flt(row.amount)
 		)
 
+	_add_loan_deductions(slips, buckets, deductions)
+
 	return earnings, deductions, employer
+
+
+def _add_loan_deductions(slips, buckets, deductions):
+	"""Loan repayments taken through payroll live on Salary Slip's own loan
+	table (Salary Slip Loan), not in Salary Detail with every other component -
+	added in here, keyed by Loan Product, so a loan shows up as an ordinary
+	deduction line instead of silently missing from the register and Net Pay.
+	"""
+	rows = frappe.db.sql(
+		"""
+		SELECT sl.parent, sl.loan_product, sl.total_payment
+		FROM `tabSalary Slip Loan` sl
+		WHERE sl.parent IN %(slips)s
+		""",
+		{"slips": [s.name for s in slips]},
+		as_dict=True,
+	)
+	for row in rows:
+		if not flt(row.total_payment):
+			continue
+		group = buckets.get(row.parent)
+		deductions.setdefault(row.loan_product, {})
+		deductions[row.loan_product][group] = (
+			deductions[row.loan_product].get(group, 0.0) + flt(row.total_payment)
+		)
 
 
 def _groups_present(buckets, *totals):
@@ -176,50 +203,6 @@ def _headcount(slips, buckets, groups, show_total):
 	if show_total:
 		row["total"] = len(everyone) or None
 	return row
-
-
-def _deduction_groups(company):
-	"""{component: (order, label)} from the company's own Deduction Priority.
-
-	Statutory components are always grouped, because the app knows them itself.
-	Beyond those, a company that has ranked nothing simply gets one Statutory
-	group and everything else under Other - grouping is a reading aid, so an
-	unconfigured company loses some of the aid rather than being given tiers
-	nobody chose.
-	"""
-	from upande_payroll.kenya_statutory_calculator import get_statutory_components
-
-	# Statutory first, and from the app's own component map rather than from
-	# Deduction Priority. Priority ranks only what may give way under the two
-	# thirds rule, and statutory never gives way - so keying the whole grouping
-	# off Priority alone dropped PAYE, NSSF, SHIF and the Housing Levy into a
-	# bucket called Other, which is the one thing a statutory register must not
-	# call them.
-	mapping = {
-		name: (-1.0, _("Statutory"))
-		for name in set(get_statutory_components().values())
-	}
-
-	priority = frappe.db.get_value("Deduction Priority", {"company": company}, "name")
-	if not priority:
-		return mapping
-
-	for row in frappe.get_all(
-		"Deduction Priority Detail",
-		filters={"parent": priority},
-		fields=["salary_component", "deduction_group"],
-	):
-		if not (row.salary_component and row.deduction_group):
-			continue
-		group = frappe.get_cached_value(
-			"Deduction Group", row.deduction_group, ["group_name", "priority"], as_dict=True
-		)
-		if not group:
-			continue
-		if row.salary_component in mapping:
-			continue
-		mapping[row.salary_component] = (flt(group.priority), group.group_name or row.deduction_group)
-	return mapping
 
 
 # ----------------------------------------------------------------------
@@ -272,54 +255,16 @@ def _rows(groups, earnings, deductions, employer, filters, slips, buckets):
 			rows.append(row)
 		return running
 
-	def grouped(title, totals, component_groups):
-		"""The deductions block, ordered by Deduction Group with a subtotal each.
-
-		A flat list reads fine at seven components and not at all at thirty. The
-		order is the company's own Deduction Priority - the same tiers the two
-		thirds rule makes give way - so the register reads in the order the money
-		is actually taken. Anything nobody has ranked falls to the end under its
-		own subtotal rather than being dropped.
-		"""
-		rows.append({"component": title, "is_group": 1, "is_heading": 1})
-		running = {}
-
-		other = _("Other")
-		by_group = {}
-		for component in totals:
-			order, label = component_groups.get(component, (float("inf"), other))
-			by_group.setdefault((order, label), []).append(component)
-
-		for key in sorted(by_group, key=lambda k: (k[0], k[1])):
-			subtotal = {}
-			for component in sorted(by_group[key]):
-				amounts = totals[component]
-				row = {"component": component}
-				line = 0.0
-				for group in groups:
-					value = flt(amounts.get(group, 0.0))
-					row[frappe.scrub(group)] = value or None
-					running[group] = running.get(group, 0.0) + value
-					subtotal[group] = subtotal.get(group, 0.0) + value
-					line += value
-				if show_total:
-					row["total"] = line or None
-				rows.append(row)
-			rows.append(_summary(_("Total {0}").format(key[1]), subtotal, groups, show_total))
-
-		return running
-
 	gross = section(_("EARNINGS"), earnings)
 	rows.append(_summary(_("Gross Pay"), gross, groups, show_total))
 	rows.append({})
 
-	# Statutory and voluntary deductions the employee actually bears.
-	component_groups = _deduction_groups(filters.company)
-	taken = (
-		grouped(_("DEDUCTIONS"), deductions, component_groups)
-		if component_groups
-		else section(_("DEDUCTIONS"), deductions)
-	)
+	# Statutory and voluntary deductions the employee actually bears - one flat
+	# list, same as earnings. Every loan repayment already arrives keyed by its
+	# own Loan Product (see _add_loan_deductions), so it reads as an ordinary
+	# line alongside every Salary Component rather than needing a group of its
+	# own to be found.
+	taken = section(_("DEDUCTIONS"), deductions)
 	rows.append(_summary(_("Total Deductions"), taken, groups, show_total))
 	rows.append({})
 

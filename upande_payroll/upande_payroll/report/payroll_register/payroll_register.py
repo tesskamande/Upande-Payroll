@@ -77,7 +77,7 @@ def _get_slips(filters):
 			"name", "employee", "employee_name", "branch", "department", "designation",
 			"company", "start_date", "end_date", "status",
 			"total_working_days", "payment_days", "leave_without_pay", "absent_days",
-			"gross_pay", "total_deduction", "total_loan_repayment",
+			"gross_pay", "total_deduction",
 			"custom_total_actual_repayment", "custom_total_deferred_deductions",
 			"net_pay", "rounded_total",
 		],
