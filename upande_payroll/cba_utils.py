@@ -30,19 +30,29 @@ def validate_basic_pay_against_cba(doc, method=None):
 
 
 def get_cba_minimum(job_category, company=None):
-	"""The agreed rate for a Job Category under the agreement in force today.
+	"""The floor a new hire in this Job Category must be entered at, under the
+	agreement in force today.
 
 	Dated on purpose: an agreement signed for next year must not hold up today's
 	saves, and the rate that binds is the one currently running. Scoped to the
 	employee's company too, so one company's scale never governs another's staff
 	on a bench that carries more than one.
+
+	This is Entry Minimum, not New Basic Pay. New Basic Pay is only the floor
+	the raise must land existing staff above - a new starter was never on the
+	old rate to begin with, and the agreement itself can say the entry-level
+	floor does not move even while it raises everyone already employed (see the
+	HFB CBA's own NB(iv): the minimum wage holds for the agreement's whole life,
+	so someone hired after the raise still joins at the same floor as someone
+	hired before it). Falls back to Current Basic Pay for a pay table row saved
+	before Entry Minimum existed, since the two were the same figure until now.
 	"""
 	filters = {"docstatus": 1, "effective_start_date": ("<=", getdate())}
 	if company:
 		filters["company"] = company
 
 	cba = frappe.db.get_value(
-		"CBA", filters, ["name", "applied_on"], as_dict=True,
+		"CBA", filters, "name",
 		order_by="effective_start_date desc, creation desc",
 	)
 	if not cba:
@@ -50,32 +60,28 @@ def get_cba_minimum(job_category, company=None):
 
 	row = frappe.db.get_value(
 		"CBA Pay Table",
-		{"parent": cba.name, "job_category": job_category},
-		["current_basic_pay", "new_basic_pay"],
+		{"parent": cba, "job_category": job_category},
+		["entry_minimum", "current_basic_pay"],
 		as_dict=True,
 	)
 	if not row:
 		return None
 
-	# Which of the two rates binds depends on whether the increase has actually
-	# been paid out. Until the agreement is applied, everyone is still on the
-	# old rate - holding them to the new one would refuse every save in the gap
-	# between signing and applying. Once applied, the new rate is what everyone
-	# is on and what a new starter must be entered at.
-	if cba.applied_on:
-		return flt(row.new_basic_pay) or flt(row.current_basic_pay)
-	return flt(row.current_basic_pay)
+	return flt(row.entry_minimum) or flt(row.current_basic_pay)
 
 
 def pay_rules(cba):
 	"""What each Job Category in the pay table is worth, keyed by category."""
 	rules = {
 		row.job_category: {
-			# The rate the agreement moves the category to, and the same figure
-			# the Employee form enforces once this is applied. Taking the old
-			# rate here left apply writing pay that the form then refused to
-			# save - lifted to 9,731 while being held to 10,607.
+			# The rate the agreement moves the category to - what somebody
+			# already on the books lands on once their own increase is added.
 			"agreed_rate": flt(row.new_basic_pay) or flt(row.current_basic_pay),
+			# The floor for the raise itself. Someone earning nothing, or below
+			# this, is not "increased" - they are entered at the category's
+			# minimum, same as a new hire would be. Falls back to Current Basic
+			# Pay for a pay table row saved before Entry Minimum existed.
+			"entry_minimum": flt(row.entry_minimum) or flt(row.current_basic_pay),
 			"increase_amount": flt(row.increase_amount),
 		}
 		for row in cba.table_dqro
@@ -116,12 +122,18 @@ def affected_employees(cba, cba_map):
 
 
 def new_basic_pay(current, rule):
-	"""The increase on top of what they earn, floored at the agreed rate.
+	"""The increase on top of what they earn, floored at the Entry Minimum.
 
-	Whichever is higher: a differential earned above the old scale is not
-	flattened, and nobody is left under the new one.
+	Whichever is higher: someone already above the minimum keeps their own
+	increase (a differential earned above the old scale is not flattened),
+	but someone below it - earning 0, or genuinely underpaid - is not
+	"increased" from there, since current + increase could still land them
+	under the category's floor. They are entered at the minimum instead, same
+	as a new hire. Someone earning exactly the minimum passes through this
+	floor untouched and gets the ordinary raise on top, landing on the
+	category's agreed rate - the two are the same number by construction.
 	"""
-	return round(max(flt(current) + rule["increase_amount"], rule["agreed_rate"]), 2)
+	return round(max(flt(current) + rule["increase_amount"], rule["entry_minimum"]), 2)
 
 
 @frappe.whitelist()
@@ -155,9 +167,10 @@ def preview_cba_impact(cba_name):
 		})
 		row["count"] += 1
 		# Worth separating: these are the ones whose rise is more than the
-		# negotiated amount, because they were under the old scale to begin
-		# with. A surprise in the payroll total usually traces back to them.
-		if flt(emp.basic_pay) + rule["increase_amount"] < rule["agreed_rate"]:
+		# negotiated amount, because they were under the category's minimum to
+		# begin with. A surprise in the payroll total usually traces back to
+		# them - matches the floor new_basic_pay() actually applies.
+		if flt(emp.basic_pay) + rule["increase_amount"] < rule["entry_minimum"]:
 			row["lifted_to_scale"] += 1
 		# Counted and raised, but not at work - worth saying so before the
 		# button is pressed, rather than leaving it to be noticed in the total.

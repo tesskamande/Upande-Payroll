@@ -21,6 +21,69 @@ class CBA(Document):
 			row.increase_amount = increase_amount
 			row.new_basic_pay = current_basic_pay + increase_amount
 
+	def on_cancel(self):
+		self.revert_application()
+
+	def revert_application(self):
+		"""Undo what applying this CBA did, then remove the trail it left.
+
+		Newest first, per employee: someone touched twice by this same CBA (a
+		promotion and the general raise both landing on them) has to be peeled
+		back in the order it was laid down, not both at once against whatever
+		they happen to be on now.
+
+		Only reverts a log row whose employee is still exactly where that row
+		left them - basic_pay still equal to what it wrote, job_category too
+		for a promotion. Anything moved since (a later CBA, a manual change) is
+		not this cancel's to erase, so that employee is left alone and only the
+		log row itself is removed.
+		"""
+		logs = frappe.get_all(
+			"CBA Application Log",
+			filters={"cba": self.name},
+			fields=[
+				"name", "employee", "event", "job_category",
+				"from_job_category", "previous_basic_pay", "new_basic_pay",
+			],
+			order_by="creation desc",
+		)
+		if not logs:
+			return
+
+		current_state = {}
+		for log in logs:
+			if log.employee not in current_state:
+				row = frappe.db.get_value(
+					"Employee", log.employee, ["basic_pay", "job_category"], as_dict=True
+				)
+				if not row:
+					continue
+				current_state[log.employee] = row
+			current = current_state.get(log.employee)
+			if not current:
+				continue
+
+			if flt(current.basic_pay) != flt(log.new_basic_pay):
+				continue
+			if log.event == "Promotion" and log.job_category and current.job_category != log.job_category:
+				continue
+
+			updates = {"basic_pay": flt(log.previous_basic_pay)}
+			current.basic_pay = flt(log.previous_basic_pay)
+			if log.event == "Promotion" and log.from_job_category:
+				updates["job_category"] = log.from_job_category
+				current.job_category = log.from_job_category
+
+			frappe.db.set_value("Employee", log.employee, updates, update_modified=False)
+
+		for log in logs:
+			frappe.delete_doc(
+				"CBA Application Log", log.name,
+				ignore_permissions=True, delete_permanently=True,
+			)
+
+		self.db_set("applied_on", None, update_modified=False)
+
 	def validate_dates(self):
 		"""An agreement that ends before it starts covers nothing.
 
@@ -83,6 +146,7 @@ class CBA(Document):
 			self.append("table_dqro", {
 				"job_category": row["job_category"],
 				"current_basic_pay": row["current_basic_pay"],
+				"entry_minimum": row["entry_minimum"],
 			})
 
 		frappe.msgprint(
@@ -134,7 +198,7 @@ def previous_rates(company, before=None, exclude=None):
 	rows = frappe.get_all(
 		"CBA Pay Table",
 		filters={"parent": source.name, "parenttype": "CBA"},
-		fields=["job_category", "current_basic_pay", "new_basic_pay"],
+		fields=["job_category", "current_basic_pay", "new_basic_pay", "entry_minimum"],
 		order_by="idx",
 	)
 
@@ -144,6 +208,11 @@ def previous_rates(company, before=None, exclude=None):
 			# Where the last agreement left them. If its new rate was never
 			# worked out, what they were on when it was signed.
 			"current_basic_pay": flt(row.new_basic_pay) or flt(row.current_basic_pay),
+			# Entry Minimum is carried forward as-is, not from New Basic Pay - a
+			# new starter's floor does not move just because this round raised
+			# people already on the books (falls back to the old row's own
+			# Current Basic Pay for a pay table saved before this field existed).
+			"entry_minimum": flt(row.entry_minimum) or flt(row.current_basic_pay),
 			"source": source.name,
 			"source_from": source.effective_start_date,
 		}

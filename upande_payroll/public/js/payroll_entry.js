@@ -29,6 +29,24 @@ frappe.ui.form.on("Payroll Entry", {
 				__("Create")
 			);
 		});
+
+		// Only where the app is even installed, and only for the companies
+		// that actually use it - most companies running payroll here don't,
+		// and the button would otherwise lead to an empty queue every time.
+		if (frappe.boot.versions && frappe.boot.versions.work_management) {
+			frappe.db.get_value(
+				"Company Payroll Settings",
+				frm.doc.company,
+				"enable_work_management_link"
+			).then(({ message }) => {
+				if (!message || !message.enable_work_management_link) {
+					return;
+				}
+				frm.add_custom_button(__("Awaiting Payroll (Work Mgmt)"), () => {
+					window.open("/work-payment#accounts", "_blank");
+				});
+			});
+		}
 	},
 
 	/*

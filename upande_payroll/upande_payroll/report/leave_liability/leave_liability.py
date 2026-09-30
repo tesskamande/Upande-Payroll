@@ -17,7 +17,7 @@ def execute(filters=None):
 
 	if filters.breakdown in BREAKDOWN_FIELDS:
 		return _columns(filters), _by_breakdown(provisions, filters)
-	return _columns(filters), _by_period(provisions)
+	return _columns(filters), _by_period(provisions, filters)
 
 
 # ----------------------------------------------------------------------
@@ -36,8 +36,7 @@ def _provisions(filters):
 
 	return frappe.db.sql(
 		"""
-		SELECT name, from_date, to_date, total_liability, previous_liability,
-			movement, journal_entry
+		SELECT name, from_date, to_date, total_liability, journal_entry
 		FROM `tabLeave Provision`
 		WHERE {conditions}
 		ORDER BY to_date ASC, creation ASC
@@ -47,9 +46,31 @@ def _provisions(filters):
 	)
 
 
-def _by_period(provisions):
+def _opening_before(provision, filters):
+	"""The liability standing right before this provision's period - the closing
+	total_liability of whichever submitted Leave Provision immediately precedes it.
+
+	previous_liability/movement used to be stored on each row for this, but they
+	could only ever be filled in from whatever the immediately-prior provision
+	looked like at the moment THIS one was created - they went stale the instant
+	an earlier period was amended. Reading the actual prior row instead, fresh,
+	on every report run, cannot drift out of sync with it.
+	"""
+	conditions = {"docstatus": 1, "to_date": ("<", provision.from_date)}
+	if filters.get("company"):
+		conditions["company"] = filters.company
+
+	prior = frappe.db.get_value(
+		"Leave Provision", conditions, "total_liability",
+		order_by="to_date desc", as_dict=True,
+	)
+	return flt(prior.total_liability, 2) if prior else 0.0
+
+
+def _by_period(provisions, filters):
 	"""One line per payroll period: what was owed, and how it moved."""
 	rows = []
+	previous_liability = None
 	for provision in provisions:
 		people = frappe.db.count("Leave Provision Detail",
 								 {"parent": provision.name,
@@ -60,16 +81,24 @@ def _by_period(provisions):
 			WHERE parent = %s AND parenttype = 'Leave Provision'
 			""", provision.name)[0][0]
 
+		# Only the very first row in the fetched (possibly date-filtered) range
+		# needs a fresh lookup - every row after it is preceded, in this same
+		# list, by the provision whose closing balance IS its opening balance.
+		if previous_liability is None:
+			previous_liability = _opening_before(provision, filters)
+
+		liability = flt(provision.total_liability, 2)
 		rows.append({
 			"period": f"{provision.from_date} to {provision.to_date}",
 			"leave_provision": provision.name,
 			"employees": people,
 			"days": flt(days, 2),
-			"opening": flt(provision.previous_liability, 2),
-			"movement": flt(provision.movement, 2),
-			"liability": flt(provision.total_liability, 2),
+			"opening": previous_liability,
+			"movement": flt(liability - previous_liability, 2),
+			"liability": liability,
 			"journal_entry": provision.journal_entry,
 		})
+		previous_liability = liability
 	return rows
 
 

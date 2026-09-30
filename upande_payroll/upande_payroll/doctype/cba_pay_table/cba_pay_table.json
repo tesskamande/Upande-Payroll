@@ -8,6 +8,7 @@
  "engine": "InnoDB",
  "field_order": [
   "job_category",
+  "entry_minimum",
   "current_basic_pay",
   "percentage_increase",
   "increase_amount",
@@ -22,6 +23,14 @@
    "in_list_view": 1,
    "label": "Job Category",
    "options": "CBA Job Category"
+  },
+  {
+   "description": "The floor for a brand-new hire in this category, for the life of this agreement. Separate from Current/New Basic Pay, which only govern the raise given to people already employed - a new starter is never held to the raised rate, only to this one.",
+   "fieldname": "entry_minimum",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Entry Minimum",
+   "precision": "2"
   },
   {
    "fieldname": "current_basic_pay",

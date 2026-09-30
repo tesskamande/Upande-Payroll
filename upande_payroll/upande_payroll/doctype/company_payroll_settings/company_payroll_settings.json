@@ -70,7 +70,8 @@
   "column_break_snpb",
   "salary_bank_split_by",
   "salary_bank_accounts_section",
-  "salary_bank_accounts"
+  "salary_bank_accounts",
+  "enable_work_management_link"
  ],
  "fields": [
   {
@@ -541,6 +542,13 @@
    "options": "Payroll Salary Bank",
    "depends_on": "enable_salary_bank_split",
    "description": "Which of the company's accounts pays each group. What decides the group is set above."
+  },
+  {
+   "default": "0",
+   "description": "Adds an \"Awaiting Payroll (Work Mgmt)\" button on this company's Payroll Entry, linking to Work Management's payment queue. Turn on only for companies that actually use Work Management.",
+   "fieldname": "enable_work_management_link",
+   "fieldtype": "Check",
+   "label": "Link Payroll Entry to Work Management"
   }
  ],
  "index_web_pages_for_search": 1,

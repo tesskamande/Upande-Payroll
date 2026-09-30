@@ -1,19 +1,14 @@
 // Copyright (c) 2026, Teresia and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["CBA Application Log"] = {
+frappe.query_reports["CBA Compliance"] = {
 	filters: [
-		{
-			fieldname: "cba",
-			label: __("CBA"),
-			fieldtype: "Link",
-			options: "CBA",
-		},
 		{
 			fieldname: "company",
 			label: __("Company"),
 			fieldtype: "Link",
 			options: "Company",
+			reqd: 1,
 			default: frappe.defaults.get_user_default("Company"),
 		},
 		{
@@ -26,20 +21,15 @@ frappe.query_reports["CBA Application Log"] = {
 				: "",
 		},
 		{
-			fieldname: "employee",
-			label: __("Employee"),
-			fieldtype: "Link",
-			options: "Employee",
+			fieldname: "status",
+			label: __("Status"),
+			fieldtype: "Select",
+			options: "\nActive\nInactive\nSuspended\nLeft",
 		},
 		{
-			fieldname: "from_date",
-			label: __("Applied From"),
-			fieldtype: "Date",
-		},
-		{
-			fieldname: "to_date",
-			label: __("Applied To"),
-			fieldtype: "Date",
+			fieldname: "only_below_minimum",
+			label: __("Only Below Minimum"),
+			fieldtype: "Check",
 		},
 	],
 };

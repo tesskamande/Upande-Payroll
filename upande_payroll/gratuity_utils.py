@@ -55,17 +55,6 @@ def calculate_gratuity(doc, method=None):
 		)
 	doc.current_work_experience = years
 
-	# Applicable earning total, from the latest submitted Salary Slip
-	salary_slip_name = frappe.db.get_value(
-		"Salary Slip",
-		{"employee": doc.employee, "docstatus": 1},
-		"name",
-		order_by="start_date desc",
-	)
-	if not salary_slip_name:
-		frappe.throw(f"No submitted salary slip found for employee: {doc.employee}")
-
-	salary_slip = frappe.get_doc("Salary Slip", salary_slip_name)
 	applicable_components = frappe.get_all(
 		"Gratuity Applicable Component",
 		filters={"parent": doc.gratuity_rule},
@@ -74,13 +63,41 @@ def calculate_gratuity(doc, method=None):
 	if not applicable_components:
 		frappe.throw(f"No applicable earning components found in Gratuity Rule: {doc.gratuity_rule}")
 
-	total_component_amount = sum(
-		flt(row.amount) for row in salary_slip.earnings if row.salary_component in applicable_components
+	# Applicable earning total, from the latest submitted Salary Slip
+	salary_slip_name = frappe.db.get_value(
+		"Salary Slip",
+		{"employee": doc.employee, "docstatus": 1},
+		"name",
+		order_by="start_date desc",
 	)
-	if not total_component_amount:
-		frappe.throw(
-			f"No applicable earning component found in last salary slip. "
-			f"Please check Gratuity Rule: {doc.gratuity_rule}"
+	if salary_slip_name:
+		salary_slip = frappe.get_doc("Salary Slip", salary_slip_name)
+		total_component_amount = sum(
+			flt(row.amount) for row in salary_slip.earnings if row.salary_component in applicable_components
+		)
+		if not total_component_amount:
+			frappe.throw(
+				f"No applicable earning component found in last salary slip. "
+				f"Please check Gratuity Rule: {doc.gratuity_rule}"
+			)
+	else:
+		# No submitted Salary Slip exists at all - e.g. a company migrating in
+		# mid-year, or someone leaving before their first payslip here. Same
+		# pattern already used for overtime/leave encashment: fall back to
+		# Employee.basic_pay, throw on zero rather than silently computing a
+		# nil gratuity. GratuityMixin.validate() is what keeps core's own
+		# Gratuity.validate() from throwing "No Salary Slip found" before this
+		# function even gets a chance to run.
+		total_component_amount = flt(employee.basic_pay)
+		if not total_component_amount:
+			frappe.throw(
+				f"No submitted Salary Slip and no Basic Pay set for employee: {doc.employee}. "
+				f"Gratuity cannot be calculated."
+			)
+		frappe.msgprint(
+			f"No submitted Salary Slip found for {doc.employee} - using Basic Pay "
+			f"({frappe.utils.fmt_money(total_component_amount)}) instead.",
+			indicator="orange", alert=True,
 		)
 
 	rule_slabs = frappe.get_all(
@@ -533,6 +550,26 @@ class GratuityMixin:
 		settlement's own journal for terminal dues.
 		"""
 		return not (self.pay_via_salary_slip or self.get("custom_pay_via_terminal_dues"))
+
+	def validate(self):
+		"""Skip core's own validate() when there is no Salary Slip to read yet.
+
+		Core's Gratuity.validate() unconditionally calls
+		calculate_work_experience_and_amount(), which throws "No Salary Slip
+		found for Employee" the instant there is none - before
+		calculate_gratuity() (this app's own doc_events hook, in this same
+		module, which DOES handle that case with a Basic Pay fallback) ever
+		gets a chance to run. calculate_gratuity() runs regardless of what
+		happens here (doc_events fire independently of the controller's own
+		validate()), so skipping straight to set_status() only when there is
+		truly no slip leaves the real, slab/tax-aware amount on the document
+		instead of core's cruder one - which calculate_gratuity() would have
+		had to overwrite anyway, on every gratuity, slip or no slip.
+		"""
+		if frappe.db.exists("Salary Slip", {"employee": self.employee, "docstatus": 1}):
+			super().validate()
+		else:
+			self.set_status()
 
 	def on_submit(self):
 		if self.get("custom_pay_via_terminal_dues") and not self.pay_via_salary_slip:

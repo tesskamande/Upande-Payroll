@@ -42,8 +42,19 @@ frappe.ui.form.on("CBA", {
 		// agreement itself, already filtered to it.
 		if (frm.doc.applied_on) {
 			frm.add_custom_button(
-				__("Application Log"),
-				() => frappe.set_route("query-report", "CBA Application Log", { cba: frm.doc.name }),
+				__("Pay Raise History"),
+				() => frappe.set_route("query-report", "CBA Pay Raise History", { cba: frm.doc.name }),
+				__("View")
+			);
+		}
+
+		// A live check, not history - who in this company is below their
+		// category's floor right now, whether or not this particular
+		// agreement ever touched them. Useful before applying, not just after.
+		if (frm.doc.company) {
+			frm.add_custom_button(
+				__("Compliance Report"),
+				() => frappe.set_route("query-report", "CBA Compliance", { company: frm.doc.company }),
 				__("View")
 			);
 		}
@@ -190,6 +201,7 @@ function carry_forward_rates(frm) {
 				const child = frm.add_child("table_dqro");
 				child.job_category = row.job_category;
 				child.current_basic_pay = row.current_basic_pay;
+				child.entry_minimum = row.entry_minimum;
 			});
 			frm.refresh_field("table_dqro");
 			frappe.show_alert({
