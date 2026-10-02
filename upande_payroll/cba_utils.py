@@ -133,7 +133,7 @@ def affected_employees(cba, cba_map):
 			"company": cba.company,
 			"job_category": ["in", list(cba_map.keys())],
 		},
-		fields=["name", "employee_name", "status", "job_category", "basic_pay"],
+		fields=["name", "employee_name", "employee_number", "status", "job_category", "basic_pay"],
 		order_by="job_category, employee_name",
 	)
 
@@ -289,6 +289,7 @@ def apply_cba_to_employees(cba_name):
 			"company": cba.company,
 			"employee": emp.name,
 			"employee_name": emp.employee_name,
+			"employee_number": emp.employee_number,
 			"job_category": emp.job_category,
 			"previous_basic_pay": previous_pay,
 			"increase_amount": round(new_pay - previous_pay, 2),
@@ -392,7 +393,7 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 		for emp in frappe.get_all(
 			"Employee",
 			filters={"company": co, "status": "Active", "job_category": ("in", list(rules))},
-			fields=["name", "employee_name", "job_category", "basic_pay"],
+			fields=["name", "employee_name", "employee_number", "job_category", "basic_pay"],
 		):
 			since = service_since(emp.name)
 			if not since:
@@ -429,6 +430,7 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 				"company": co,
 				"employee": emp.name,
 				"employee_name": emp.employee_name,
+				"employee_number": emp.employee_number,
 				"event": "Promotion",
 				"from_job_category": emp.job_category,
 				"job_category": to_category,

@@ -10,6 +10,7 @@
   "cba",
   "employee",
   "employee_name",
+  "employee_number",
   "event",
   "from_job_category",
   "job_category",
@@ -50,6 +51,14 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.employee_number",
+   "fieldname": "employee_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Number",
    "read_only": 1
   },
   {

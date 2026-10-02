@@ -18,6 +18,12 @@ fixtures = [
 			["dt", "=", "Employee"],
 			["fieldname", "in", [
 				"job_category",
+				# Own column, apart from Payroll Cost Center - basic_pay and
+				# everything that follows it sits there instead. The column
+				# break's position in the Salary tab is upande_hr's to say
+				# (Employee-main-field_order, upande_hr/custom/employee.json);
+				# this is only the field that makes a new column possible.
+				"custom_basic_pay_column_break",
 				"basic_pay",
 				"custom_is_secondary_employment",
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
@@ -148,6 +154,20 @@ fixtures = [
 	# HR adds, renames or removes one from the list view like any other record,
 	# nothing here is enforced.
 	{"doctype": "CBA Job Category"},
+	# The Command Center's own content - built directly against the live site
+	# and never otherwise committed anywhere. Without this, a fresh deploy
+	# gets the bare Workspace page (that part is a real file already) with no
+	# tiles on it at all.
+	{
+		"dt": "Custom HTML Block",
+		"filters": [["name", "=", "Payroll Command Center"]],
+	},
+	# The sidebar entry that nests Command Center under Payroll. Same problem
+	# as the block above - a live edit to a record with no file behind it.
+	{
+		"dt": "Workspace Sidebar",
+		"filters": [["name", "=", "Payroll"]],
+	},
 ]
 
 # Apps

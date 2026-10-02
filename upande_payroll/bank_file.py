@@ -22,7 +22,7 @@ somebody fixes it, the file must not carry it to the bank at all.
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, formatdate, getdate, today
+from frappe.utils import cint, flt, formatdate, getdate, now_datetime, today
 
 from upande_payroll.upande_payroll.report.bank_remittance.bank_remittance import (
 	execute as run_bank_remittance,
@@ -173,6 +173,9 @@ def _context(fmt, filters, rows):
 		"from_date_ddmmyyyy": _ddmmyyyy(filters.get("from_date")),
 		"to_date_ddmmyyyy": _ddmmyyyy(filters.get("to_date")),
 		"today_ddmmyyyy": _ddmmyyyy(today()),
+		# The moment the file is actually built, not the value date next to it. A
+		# bank that asks for a submission time wants the real one.
+		"now_hhmmss": now_datetime().strftime("%H%M%S"),
 		"debit_account": account.get("bank_account_no") or "",
 		"debit_branch_code": account.get("branch_code") or "",
 		"debit_bank_code": frappe.db.get_value("Bank", fmt.bank, "custom_bank_code") or "",
