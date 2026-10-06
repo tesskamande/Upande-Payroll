@@ -12,6 +12,8 @@
   "branch_code",
   "disabled"
  ],
+ "show_title_field_in_link": 1,
+ "title_field": "branch_name",
  "fields": [
   {
    "fieldname": "bank",

@@ -33,6 +33,36 @@ class OvertimeSlipMixin:
 			return super().on_submit()
 		self._compute_overtime(settings)
 
+	def on_cancel(self):
+		# Withdraws the Additional Salary this slip raised, whichever path
+		# created it - this app's own _compute_overtime(), or core's
+		# process_overtime_slip() for a company that has the calculation
+		# switched off. Neither core's OvertimeSlip nor Document define
+		# on_cancel at all (confirmed via the class MRO - unlike on_submit,
+		# which both define), so there is nothing to delegate to: cancelling
+		# an Overtime Slip left its Additional Salary standing before this,
+		# still paying the employee overtime that was just retracted.
+		self._cancel_additional_salary()
+
+	def _cancel_additional_salary(self):
+		for name in frappe.get_all(
+			"Additional Salary",
+			filters={"ref_doctype": "Overtime Slip", "ref_docname": self.name, "docstatus": 1},
+			pluck="name",
+		):
+			paid_on = frappe.get_all(
+				"Salary Detail",
+				filters={"additional_salary": name, "parenttype": "Salary Slip", "docstatus": 1},
+				pluck="parent", limit=1,
+			)
+			if paid_on:
+				frappe.throw(
+					f"Additional Salary {name} has already been paid on Salary Slip "
+					f"{paid_on[0]}. Cancel that first."
+				)
+			frappe.get_doc("Additional Salary", name).cancel()
+			frappe.msgprint(f"Cancelled {name}.", indicator="orange")
+
 	# Named apart from core's process_overtime_slip/get_overtime_component_amounts
 	# on purpose. extend_doctype_class puts this mixin ahead of HRMS in the
 	# method resolution order, so same-named methods here are what self.<name>

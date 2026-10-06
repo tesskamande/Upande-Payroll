@@ -79,6 +79,35 @@ frappe.ui.form.on("Payroll Entry", {
 		});
 	},
 
+	/*
+	 * validate_attendance is a real field-change event, not a direct
+	 * frm.events.x(frm) call like add_bank_entry_button above - the script
+	 * manager runs every registered handler for it in turn (script_manager.js
+	 * trigger()), hrms's own first since it loads first, this one after. So
+	 * both do run; this one simply re-renders the same result a second time,
+	 * replacing hrms's table with one whose link goes to the Missing
+	 * Attendance report (the exact missing employee+day pairs) instead of the
+	 * Monthly Attendance Sheet (a full grid with no missing-day highlight,
+	 * ../../hrms/public/js/templates/employees_with_unmarked_attendance.html).
+	 * The extra get_employees_with_unmarked_attendance call this causes is the
+	 * cost of not touching hrms's own file to make the swap.
+	 */
+	validate_attendance(frm) {
+		if (!frm.doc.validate_attendance || !(frm.doc.employees || []).length) {
+			return;
+		}
+		frappe.call({
+			method: "get_employees_with_unmarked_attendance",
+			args: {},
+			doc: frm.doc,
+			freeze: true,
+			freeze_message: __("Validating Employee Attendance..."),
+			callback(r) {
+				render_missing_attendance(frm, r.message);
+			},
+		});
+	},
+
 	// HRMS keeps its own make_bank_entry as a module-local function, so it
 	// cannot be called from here. This is the same call it makes.
 	upande_make_bank_entry(frm, for_withheld_salaries) {
@@ -105,6 +134,77 @@ frappe.ui.form.on("Payroll Entry", {
 		});
 	},
 });
+
+/*
+ * attendance_detail_html is never saved - it's only ever set as a side
+ * effect of the validate_attendance event firing (a checkbox toggle, or
+ * get_employee_details() re-running it). So a Payroll Entry with Validate
+ * Attendance already checked loses the box the moment the form is loaded
+ * fresh rather than toggled - following the Missing Attendance report link
+ * out and back is exactly that: the form reloads from the server, and the
+ * checkbox's own saved value doesn't re-trigger anything on its own.
+ *
+ * Registered as its own frappe.ui.form.on call (not added into the refresh
+ * above) because that one returns early for anything not docstatus 1, and
+ * this needs to run on a Draft just as much - Validate Attendance only
+ * matters before a Payroll Entry is submitted. script_manager.js runs every
+ * registered handler for an event, so a second "refresh" registration here
+ * runs alongside, not instead of, the one above.
+ */
+frappe.ui.form.on("Payroll Entry", "refresh", function (frm) {
+	if (frm.is_new() || !frm.doc.validate_attendance || !(frm.doc.employees || []).length) {
+		return;
+	}
+	const box = frm.fields_dict.attendance_detail_html;
+	if (!box || (box.$wrapper.html() || "").trim()) {
+		return;
+	}
+	frm.trigger("validate_attendance");
+});
+
+function render_missing_attendance(frm, data) {
+	if (!data || !data.length) {
+		frm.fields_dict.attendance_detail_html.html(
+			`<div class="form-message green"><div>${__(
+				"Attendance has been marked for all the employees between the selected payroll dates."
+			)}</div></div>`
+		);
+		return;
+	}
+
+	const report_url =
+		"/app/query-report/Missing%20Attendance?payroll_entry=" + encodeURIComponent(frm.doc.name);
+	const link = `<a href="${report_url}">${__("Missing Attendance")}</a>`;
+	const rows = data
+		.map(
+			(d) => `
+		<tr>
+			<td class="text-left">${frappe.utils.escape_html(d.employee)}</td>
+			<td class="text-left">${frappe.utils.escape_html(d.employee_name)}</td>
+			<td class="text-left">${d.unmarked_days}</td>
+		</tr>`
+		)
+		.join("");
+
+	frm.fields_dict.attendance_detail_html.html(`
+		<div class="form-message yellow">
+			<div>${__(
+				"Attendance is pending for these employees between the selected payroll dates. Mark attendance to proceed. Refer {0} for the exact missing days.",
+				[link]
+			)}</div>
+		</div>
+		<table class="table table-bordered small">
+			<thead>
+				<tr>
+					<th style="width: 14%" class="text-left">${__("Employee")}</th>
+					<th style="width: 16%" class="text-left">${__("Employee Name")}</th>
+					<th style="width: 12%" class="text-left">${__("Unmarked Days")}</th>
+				</tr>
+			</thead>
+			<tbody>${rows}</tbody>
+		</table>
+	`);
+}
 
 function open_release_dialog(frm) {
 	frm.call({ method: "withheld_employees", doc: frm.doc }).then((r) => {

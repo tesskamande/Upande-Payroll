@@ -93,9 +93,12 @@ def get_rows(filters):
 
 def get_summary(filters, rows):
 	breaches = [r for r in rows if r["unreducible_excess"] > 0]
+	# balance_remaining > 0, not status = 'Pending' - a Partially Recovered
+	# debt still owes a balance, the same as deferred_deduction.get_outstanding()
+	# already checks; filtering on status alone understated what is still owed.
 	outstanding = flt(frappe.db.sql(
 		"""SELECT SUM(balance_remaining) FROM `tabDeferred Deduction`
-		WHERE company=%(company)s AND docstatus=1 AND status='Pending'""",
+		WHERE company=%(company)s AND docstatus=1 AND balance_remaining > 0""",
 		{"company": filters.company},
 	)[0][0] or 0)
 

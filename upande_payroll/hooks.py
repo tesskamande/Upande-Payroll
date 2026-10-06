@@ -18,11 +18,13 @@ fixtures = [
 			["dt", "=", "Employee"],
 			["fieldname", "in", [
 				"job_category",
-				# Own column, apart from Payroll Cost Center - basic_pay and
-				# everything that follows it sits there instead. The column
-				# break's position in the Salary tab is upande_hr's to say
-				# (Employee-main-field_order, upande_hr/custom/employee.json);
-				# this is only the field that makes a new column possible.
+				# One break, reused rather than duplicated: it now sits before
+				# payroll_cost_center (moved there so Basic Pay's own column -
+				# everything from basic_pay down to M-Pesa Number - comes
+				# first). The column break's exact position in the Salary tab
+				# is this app's own field_order Property Setter to say, not
+				# upande_hr's (Employee's field_order generally is, except for
+				# this one - see the field_order fixture's own note).
 				"custom_basic_pay_column_break",
 				"basic_pay",
 				"custom_is_secondary_employment",
@@ -38,6 +40,16 @@ fixtures = [
 				"custom_bank_branch",
 				# M-Pesa as a Salary Mode needs the number the money goes to.
 				"custom_mpesa_number",
+				# Its own section in the Salary tab, right after Terminal
+				# Benefits (custom_company_assets, just after, is a Tab Break -
+				# "Company Assets" - not part of Salary at all, which is why
+				# this sits before it, not after). Mirrors Employee Tax
+				# Exemption Proof Submission's category and validity only -
+				# the certificate number, file, and the actual approved
+				# amount all stay on the submission itself, read live by
+				# kenya_statutory_calculator.py rather than duplicated here.
+				"custom_tax_exemption_section",
+				"custom_tax_exemption_category", "custom_tax_exemption_valid_until",
 			]],
 		],
 	},
@@ -67,6 +79,7 @@ fixtures = [
 				"custom_tax_charged",
 				"custom_personal_relief_available_this_month", "custom_personal_relief_carried_forward",
 				"column_break_relief", "custom_personal_relief_utilized", "custom_annual_personal_relief",
+				"custom_tax_exemption_amount",
 				"custom_deduction_cap_section", "column_break_deduction_cap",
 				"custom_deduction_cap_applied", "custom_unreducible_excess",
 				# Was missing here, so a fresh site never got the field: the code
@@ -98,6 +111,11 @@ fixtures = [
 		"dt": "Custom Field",
 		"prefix": "salary_component_account",
 		"filters": [["dt", "=", "Salary Component Account"], ["fieldname", "like", "custom_%"]],
+	},
+	{
+		"dt": "Custom Field",
+		"prefix": "employee_tax_exemption_proof_submission",
+		"filters": [["dt", "=", "Employee Tax Exemption Proof Submission"], ["fieldname", "like", "custom_%"]],
 	},
 	{
 		"dt": "Property Setter",
@@ -137,6 +155,17 @@ fixtures = [
 		"filters": [
 			["doc_type", "=", "Salary Structure"],
 			["property", "=", "allow_on_submit"],
+		],
+	},
+	{
+		"dt": "Property Setter",
+		"prefix": "employee_allow_bulk_edit",
+		"filters": [
+			# A doctype-level flag, not a field - lets a wrong value from a
+			# variable-allowance upload (the wrong field, before payroll resets
+			# it) be reset from the list view instead of a console script.
+			["doc_type", "=", "Employee"],
+			["property", "=", "allow_bulk_edit"],
 		],
 	},
 	{
@@ -347,6 +376,14 @@ doc_events = {
 	# validate() doesn't run on a submitted save, so its checks are re-run here.
 	"Salary Structure": {
 		"before_update_after_submit": "upande_payroll.salary_structure_utils.validate_after_submit",
+	},
+	# HRMS's own doctype (built for India's annual declare-then-prove cycle),
+	# repurposed here for a KRA exemption certificate - see
+	# tax_exemption_proof_utils.py for why this is wired from the outside
+	# rather than written into the doctype's own controller.
+	"Employee Tax Exemption Proof Submission": {
+		"on_submit": "upande_payroll.tax_exemption_proof_utils.sync_to_employee",
+		"on_cancel": "upande_payroll.tax_exemption_proof_utils.unsync_from_employee",
 	},
 	"Salary Slip": {
 		# Advances claim first, so the instalment is one of the deductions the

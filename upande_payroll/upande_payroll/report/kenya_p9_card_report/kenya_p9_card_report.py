@@ -105,7 +105,13 @@ def _month(slip, monthly_relief, absence_components=None):
 	owner_interest = p9a.get("Owner Occupied Interest", 0.0)
 	allowable = (min(claimed) if claimed else 0.0) + owner_interest
 
-	chargeable = p9a.get("Chargeable Pay") or (gross - allowable)
+	# p9a only holds a key for a tag some component actually used - unlike
+	# basic/gross above, no default is passed here, so None means "no
+	# Chargeable Pay override exists" (compute it), while 0.0 means "one
+	# exists and genuinely sums to zero" (keep it, same as personal_relief
+	# just below tells a real 0 apart from none utilized).
+	chargeable_override = p9a.get("Chargeable Pay")
+	chargeable = chargeable_override if chargeable_override is not None else (gross - allowable)
 
 	# Relief actually applied on the payslip beats the standard monthly figure:
 	# a mid-year joiner or a month with too little tax to absorb it gets less.

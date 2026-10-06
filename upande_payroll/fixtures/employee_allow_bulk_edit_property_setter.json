@@ -1,0 +1,18 @@
+[
+ {
+  "default_value": null,
+  "doc_type": "Employee",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocType",
+  "field_name": null,
+  "is_system_generated": 1,
+  "modified": "2026-10-06 11:55:25.923117",
+  "module": null,
+  "name": "Employee-main-allow_bulk_edit",
+  "property": "allow_bulk_edit",
+  "property_type": "Check",
+  "row_name": null,
+  "value": "1"
+ }
+]

@@ -33,6 +33,11 @@ def execute(filters=None):
 	if not filters.get("company"):
 		frappe.throw(_("Please select a Company."))
 
+	# A payroll-only client (no lending app at all) has no Loan doctype for
+	# this report to read - nothing at risk to show, not an error page.
+	if "lending" not in frappe.get_installed_apps():
+		return get_columns(), []
+
 	as_on = getdate(filters.get("as_on_date") or frappe.utils.today())
 	loans = get_loans(filters)
 	if not loans:

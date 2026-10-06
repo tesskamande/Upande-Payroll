@@ -81,11 +81,17 @@ def get_rows(filters):
 
 def get_summary(filters, rows):
 	active = frappe.db.count("Employee", {"company": filters.company, "status": "Active"})
-	borrowers = frappe.db.sql(
-		"""SELECT COUNT(DISTINCT applicant) FROM `tabLoan`
-		WHERE company=%(company)s AND docstatus=1 AND status IN %(statuses)s AND applicant_type='Employee'""",
-		{"company": filters.company, "statuses": OPEN_STATUSES},
-	)[0][0] or 0
+	# Salary Slip Loan (what the rows above are built from) is HRMS core and
+	# always present; Loan itself is not - a payroll-only client without the
+	# lending app has nothing here to count, not an error to raise.
+	if "lending" in frappe.get_installed_apps():
+		borrowers = frappe.db.sql(
+			"""SELECT COUNT(DISTINCT applicant) FROM `tabLoan`
+			WHERE company=%(company)s AND docstatus=1 AND status IN %(statuses)s AND applicant_type='Employee'""",
+			{"company": filters.company, "statuses": OPEN_STATUSES},
+		)[0][0] or 0
+	else:
+		borrowers = 0
 
 	pct_with_loan = round((borrowers / active * 100), 1) if active else 0.0
 	avg_ratio = round(sum(r["debt_service_ratio"] for r in rows) / len(rows), 1) if rows else 0.0

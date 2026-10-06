@@ -18,6 +18,12 @@ from frappe.utils import flt, formatdate, getdate
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
 
+	# Share Transaction belongs to loan_customizations, not HRMS/ERPNext core -
+	# a payroll-only client without that app installed has no such table to
+	# query, not an error to raise.
+	if "loan_customizations" not in frappe.get_installed_apps():
+		return get_columns(), []
+
 	transactions = get_transactions(filters)
 	rows = group_rows(transactions)
 	return get_columns(), rows, None, None, get_summary(transactions)

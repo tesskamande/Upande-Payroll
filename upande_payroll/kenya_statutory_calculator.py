@@ -1,7 +1,9 @@
 import frappe
+from frappe import _
 from frappe.utils import flt, getdate
 
 from upande_payroll.kenya_statutory_gross_pay import get_income_breakdown
+from upande_payroll.tax_exemption_proof_utils import get_live_approved_amount
 from upande_payroll.upande_payroll.doctype.company_payroll_settings.company_payroll_settings import (
 	payroll_settings,
 )
@@ -55,7 +57,8 @@ def apply_regional_deductions(doc):
 	emp = frappe.db.get_value(
 		"Employee", doc.employee,
 		["custom_is_secondary_employment", "custom_opt_out_of_nssf",
-		 "custom_opt_out_of_shif", "custom_opt_out_of_housing_levy"],
+		 "custom_opt_out_of_shif", "custom_opt_out_of_housing_levy",
+		 "custom_tax_exemption_category", "custom_tax_exemption_valid_until"],
 		as_dict=True,
 	) or frappe._dict()
 	is_secondary = bool(emp.custom_is_secondary_employment)
@@ -125,9 +128,75 @@ def apply_regional_deductions(doc):
 			min(retirement_contributions, retirement_cap) if retirement_cap else retirement_contributions
 		)
 
+	# Tax exemption certificates (Income Tax Act / Persons with Disabilities
+	# Act): a valid KRA certificate exempts the first slice of a month's income
+	# from PAYE outright. The category record (Employee Tax Exemption Category)
+	# holds the amount as data, not a hardcoded number here - KRA sets it, not
+	# this app, and a different certificate type is just another category, not
+	# a code change. Treated as the individual's own certificate rather than a
+	# rule about a levy - like Personal Relief, Owner-Occupied Mortgage
+	# Interest and Pension, it does not survive into a second employment either.
+	exemption_amount = 0.0
+	if emp.custom_tax_exemption_category and not is_secondary:
+		if emp.custom_tax_exemption_valid_until and getdate(emp.custom_tax_exemption_valid_until) < getdate(doc.end_date):
+			frappe.msgprint(
+				_("{0}'s {1} certificate expired on {2}, so no exemption was applied this period. "
+				  "Renew it with KRA and update the Valid Until date once reissued.").format(
+					doc.employee, emp.custom_tax_exemption_category,
+					frappe.format_value(emp.custom_tax_exemption_valid_until, {"fieldtype": "Date"}),
+				),
+				title=_("Tax Exemption Certificate Expired"), indicator="orange",
+			)
+		else:
+			category = frappe.db.get_value(
+				"Employee Tax Exemption Category", emp.custom_tax_exemption_category,
+				["max_amount", "is_active"], as_dict=True,
+			)
+			if not category or not category.is_active:
+				frappe.msgprint(
+					_("{0} is set to {1}, but that category does not exist or is not active, so "
+					  "no exemption was applied this period.")
+					.format(doc.employee, emp.custom_tax_exemption_category),
+					title=_("Tax Exemption Not Applied"), indicator="orange",
+				)
+			elif not category.max_amount:
+				frappe.msgprint(
+					_("{0} has no Max Exemption Amount set, so no exemption was applied for {1} "
+					  "this period.").format(emp.custom_tax_exemption_category, doc.employee),
+					title=_("Tax Exemption Not Applied"), indicator="orange",
+				)
+			else:
+				# The category's Max Exemption Amount is KRA's ceiling, not the
+				# figure itself - a certificate can grant up to that much, but
+				# what was actually approved on the submission is what applies,
+				# never more than either the ceiling or the real income to exempt.
+				# Read live off the submission (not a mirrored Employee field -
+				# the submission is the only source of truth for this number).
+				# No Actual Amount on file (the common case - most submissions
+				# don't bother entering less than the full entitlement) falls
+				# back to the ceiling itself, not to zero.
+				live_amount = get_live_approved_amount(doc.employee, emp.custom_tax_exemption_category)
+				approved = live_amount if live_amount is not None else flt(category.max_amount)
+				capped_approved = min(approved, flt(category.max_amount))
+				if capped_approved < approved:
+					frappe.msgprint(
+						_("{0}'s approved amount {1} exceeds {2}'s Maximum Exemption Amount of {3} - "
+						  "capped to the ceiling.").format(
+							doc.employee,
+							frappe.format_value(approved, {"fieldtype": "Currency"}),
+							emp.custom_tax_exemption_category,
+							frappe.format_value(category.max_amount, {"fieldtype": "Currency"}),
+						),
+						title=_("Exemption Capped to Category Ceiling"), indicator="orange",
+					)
+				exemption_amount = min(breakdown.taxable_income, capped_approved)
+	doc.custom_tax_exemption_amount = flt(exemption_amount, 2)
+
 	# SHIF and Housing Levy deductibility is a rule about those specific levies,
 	# not a personal relief, so it survives into secondary employment.
-	taxable_income = max(breakdown.taxable_income - relief_shif - relief_ahl - retirement_relief, 0.0)
+	taxable_income = max(
+		breakdown.taxable_income - relief_shif - relief_ahl - retirement_relief - exemption_amount, 0.0
+	)
 
 	if is_secondary:
 		gross_paye = compute_secondary_paye(taxable_income, kenya_settings)
