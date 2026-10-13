@@ -99,7 +99,7 @@
   "link_filters": null,
   "mandatory_depends_on": null,
   "mask": 0,
-  "modified": "2026-10-08 00:00:00.000000",
+  "modified": "2026-10-08 00:00:00",
   "module": null,
   "name": "Salary Slip-custom_basic_pay_snapshot",
   "no_copy": 1,
