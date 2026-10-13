@@ -49,7 +49,8 @@ fixtures = [
 				# amount all stay on the submission itself, read live by
 				# kenya_statutory_calculator.py rather than duplicated here.
 				"custom_tax_exemption_section",
-				"custom_tax_exemption_category", "custom_tax_exemption_valid_until",
+				"custom_tax_exemption_category", "custom_tax_exemption_column_break",
+				"custom_tax_exemption_valid_until",
 			]],
 		],
 	},
@@ -75,6 +76,14 @@ fixtures = [
 			["dt", "=", "Salary Slip"],
 			["fieldname", "in", [
 				"custom_personal_relief_method",
+				# Frozen at creation, never re-fetched - see SalarySlipMixin.
+				# A Draft can sit un-submitted for weeks before this app's own
+				# review workflow clears it; Basic Pay has no dated history of
+				# its own (it lives on Employee as a single current-state
+				# field), so without this, re-saving an old Draft after a CBA
+				# promotion or a manual raise would silently apply tomorrow's
+				# rate to a period that already closed.
+				"custom_basic_pay_snapshot",
 				"custom_personal_relief_section", "custom_personal_relief_brought_forward",
 				"custom_tax_charged",
 				"custom_personal_relief_available_this_month", "custom_personal_relief_carried_forward",
@@ -179,6 +188,18 @@ fixtures = [
 			]],
 		],
 	},
+	{
+		"dt": "Property Setter",
+		"prefix": "payroll_period_periods",
+		"filters": [
+			# HRMS ships this section hidden on the form itself - cba_utils.py's
+			# pause/resume mechanism depends on these rows being something a
+			# person can actually see and tick, not only reach through the API.
+			["doc_type", "=", "Payroll Period"],
+			["field_name", "=", "section_break_5"],
+			["property", "=", "hidden"],
+		],
+	},
 	# The categories a fresh install starts with. Still just a starting point -
 	# HR adds, renames or removes one from the list view like any other record,
 	# nothing here is enforced.
@@ -249,6 +270,7 @@ doctype_js = {
 	"Leave Encashment": "public/js/leave_encashment.js",
 	"Payroll Entry": "public/js/payroll_entry.js",
 	"Salary Slip": "public/js/salary_slip.js",
+	"Payroll Period": "public/js/payroll_period.js",
 }
 doctype_list_js = {
 	# Show Withheld in the list, which Frappe's docstatus-only default hides.
@@ -367,6 +389,17 @@ doc_events = {
 	"Leave Application": {
 		"on_submit": "upande_payroll.leave_travelling_allowance.create_lta",
 		"on_cancel": "upande_payroll.leave_travelling_allowance.cancel_lta",
+	},
+	# Ticks CBA Cleared on whichever Payroll Period Date row this run covered,
+	# so cba_utils.run_job_category_progressions() resumes promotions at this
+	# company the next day - see Payroll Period Date's own custom_cba_cleared
+	# field for the other half (ticked by hand instead, for a cycle - a
+	# parallel run's comparison, say - that is never meant to be submitted).
+	"Payroll Entry": {
+		"on_submit": "upande_payroll.cba_utils.clear_cba_pause_for_payroll_entry",
+	},
+	"Payroll Period": {
+		"validate": "upande_payroll.cba_utils.generate_payroll_periods",
 	},
 	# After the controller's own validate, so both component tables and the
 	# totals exist. The 1/3 rule has to see every deduction at once, which is

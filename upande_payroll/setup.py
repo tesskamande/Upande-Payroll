@@ -105,8 +105,7 @@ STATUTORY_FIELDS = {
 		 "collapsible": 1},
 		{"fieldname": "union_member", "fieldtype": "Check",
 		 "label": "Union Member", "insert_after": "union_membership_section",
-		 "description": "Tick if this employee belongs to the union. Non-members "
-						"usually pay an agency fee instead of dues."},
+		 "description": "Tick if this employee belongs to the union."},
 		# Added at the end of the run, in its own heading, rather than slotted
 		# in beside the monthly opt-outs. Dropping it into the middle renumbered
 		# every field below it and rewired the one it displaced - churn on
@@ -119,10 +118,7 @@ STATUTORY_FIELDS = {
 		 "label": "Paid Under a Public Pension Scheme",
 		 "insert_after": "terminal_benefits_section",
 		 "description": "Tick only where this employee's gratuity is paid under a "
-						"public pension scheme. Their gratuity is then tax free up "
-						"to the yearly allowance in Kenya Payroll Settings, and only "
-						"the excess is taxed. Leave it clear for ordinary "
-						"contractual or CBA gratuity."},
+						"public pension scheme."},
 	],
 	# Payroll Entry already filters by branch, department, designation and
 	# grade. The advanced box below covers anything else a company splits a run
@@ -156,6 +152,22 @@ STATUTORY_FIELDS = {
 		 "label": "Source Payroll Entry", "options": "Payroll Entry",
 		 "insert_after": "voucher_type", "read_only": 1, "no_copy": 1,
 		 "description": "The payroll run whose liabilities this entry remits."},
+	],
+	# Each row is one payroll cycle. CBA's daily promotion job holds back,
+	# company-wide, the moment a row's own end_date has passed with this still
+	# unticked - a cycle run late (reconciliation, or a parallel run with
+	# nothing ever submitted) must not let a later promotion land on a period
+	# that has not yet been accounted for. Ticked automatically once the
+	# matching Payroll Entry submits (cba_utils.clear_cba_pause_for_payroll_entry),
+	# or by hand - this field itself is the "resume" action - for a cycle
+	# whose slips are never meant to be submitted at all.
+	"Payroll Period Date": [
+		{"fieldname": "custom_cba_cleared", "fieldtype": "Check",
+		 "label": "CBA Cleared", "insert_after": "end_date",
+		 "description": "Tick once this cycle's payroll is accounted for - "
+						"submitted, or confirmed some other way (a parallel "
+						"run's comparison finished, say). CBA will not promote "
+						"anyone at this company past this cycle until it is."},
 	],
 	"Salary Component": [
 		{"fieldname": "p9a_tax_deduction_card_type", "fieldtype": "Select",
@@ -198,6 +210,7 @@ WORKSPACE_CARDS = [
 		"HELB Report",
 		"Kenya P9 Card Report",
 		"Kenya P10 Report",
+		"Payroll GL Reconciliation",
 		"Leave Liability",
 		"Salary Review",
 		"CBA Application Log",

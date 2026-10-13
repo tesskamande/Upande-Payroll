@@ -225,6 +225,13 @@ def _rows(filters, slips, sources, spec, employee_components, employer_component
 				line[key] = 1 if (key == "voluntary" and value in (1, "Yes", "yes")) else value
 			if "voluntary" in sources and line.get("voluntary") not in (0, 1):
 				line["voluntary"] = 0
+			if "identity_type" in sources and not line.get("identity_type") and line.get("national_id"):
+				# No site has an actual "what kind of ID is this" field, and SHA's
+				# own template still expects the column filled. A National ID is
+				# the only identity type this app ever actually collects a number
+				# for, so its mere presence is read as exactly that, rather than
+				# leaving a blank the return never explains.
+				line["identity_type"] = "National ID"
 			by_employee[slip.employee] = line
 
 		gross = flt(slip.gross_pay)

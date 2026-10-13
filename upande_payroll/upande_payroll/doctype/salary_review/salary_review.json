@@ -24,6 +24,7 @@
   "reason_section",
   "reason",
   "result_section",
+  "bulk_salary_review",
   "salary_structure_assignment",
   "amended_from"
  ],
@@ -150,6 +151,16 @@
    "fieldname": "result_section",
    "fieldtype": "Section Break",
    "label": "Result"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Set when this review was created by a Bulk Salary Review's submission.",
+   "fieldname": "bulk_salary_review",
+   "fieldtype": "Link",
+   "label": "Bulk Salary Review",
+   "no_copy": 1,
+   "options": "Bulk Salary Review",
+   "read_only": 1
   },
   {
    "allow_on_submit": 1,

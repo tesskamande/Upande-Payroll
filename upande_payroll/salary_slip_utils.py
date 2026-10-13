@@ -73,6 +73,41 @@ class SalarySlipMixin:
 	supplies the loan rows and nothing more.
 	"""
 
+	def before_insert(self):
+		# Basic Pay has no dated history of its own - it lives on Employee as
+		# a single current-state field (deliberately, since 24 Sep 2026), not
+		# a period-versioned Salary Structure Assignment amount. Frozen here,
+		# once, rather than read live every time: a Draft commonly sits for
+		# days or months under this app's own review workflow before it is
+		# submitted, and get_data_for_eval() below rebuilds its formula
+		# context from whatever Employee.basic_pay says RIGHT NOW on every
+		# single save - a manual raise that lands while this slip is still a
+		# Draft would otherwise apply retroactively to a period it was never
+		# meant to touch.
+		#
+		# A CBA promotion landing in the gap before this slip even exists is
+		# cba_utils.run_job_category_progressions()'s own problem to prevent,
+		# not this one's to correct for after the fact - see its Payroll
+		# Period pause/resume mechanism, which holds a company's promotions
+		# back entirely until its payroll periods are accounted for.
+		self.custom_basic_pay_snapshot = flt(frappe.db.get_value(
+			"Employee", self.employee, "basic_pay"
+		))
+		parent = getattr(super(), "before_insert", None)
+		if parent:
+			parent()
+
+	def get_data_for_eval(self):
+		# Every company's Salary Structure formula already reads the plain
+		# ``basic_pay`` name - nothing about how a formula is written changes
+		# here. What changes is what that name resolves to: the figure frozen
+		# at before_insert, not Employee.basic_pay as it stands today.
+		data, default_data = super().get_data_for_eval()
+		if self.custom_basic_pay_snapshot is not None:
+			data["basic_pay"] = self.custom_basic_pay_snapshot
+			default_data["basic_pay"] = self.custom_basic_pay_snapshot
+		return data, default_data
+
 	def compute_year_to_date(self):
 		apply_capped_loan_repayment(self)
 		super().compute_year_to_date()

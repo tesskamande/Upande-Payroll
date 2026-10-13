@@ -202,10 +202,12 @@ class LeaveProvision(Document):
 		lines = []
 		total = 0.0
 		as_at = getdate(self.to_date)
+		no_basic_pay = []
 
 		for employee in employees:
 			basic = self.basic_pay_for(employee.name)
 			if basic <= 0:
+				no_basic_pay.append(employee.employee_name or employee.name)
 				continue
 			daily_rate = flt(basic / flt(self.divisor), 2)
 
@@ -232,6 +234,18 @@ class LeaveProvision(Document):
 
 		self._lines = lines
 		self.total_liability = flt(total, 2)
+		if no_basic_pay:
+			# Said out loud, same as everything else in this document - an
+			# employee simply left out of the total looks identical to one
+			# correctly assessed at zero. They are not the same claim.
+			frappe.msgprint(
+				_("No Basic Pay was found as at {0} for: {1}. Their leave balance "
+				  "was left out of this provision's total.").format(
+					frappe.format_value(as_at, {"fieldtype": "Date"}),
+					", ".join(no_basic_pay),
+				),
+				title=_("Employees Excluded From This Provision"), indicator="orange",
+			)
 		return lines
 
 	def lines(self):

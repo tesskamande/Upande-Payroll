@@ -71,7 +71,8 @@
   "salary_bank_split_by",
   "salary_bank_accounts_section",
   "salary_bank_accounts",
-  "enable_work_management_link"
+  "enable_work_management_link",
+  "cba_applicable"
  ],
  "fields": [
   {
@@ -82,6 +83,12 @@
    "options": "Company",
    "reqd": 1,
    "unique": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "cba_applicable",
+   "fieldtype": "Check",
+   "label": "CBA Applicable"
   },
   {
    "fieldname": "leave_encashment_section",
@@ -545,7 +552,6 @@
   },
   {
    "default": "0",
-   "description": "Adds an \"Awaiting Payroll (Work Mgmt)\" button on this company's Payroll Entry, linking to Work Management's payment queue. Turn on only for companies that actually use Work Management.",
    "fieldname": "enable_work_management_link",
    "fieldtype": "Check",
    "label": "Link Payroll Entry to Work Management"
@@ -576,5 +582,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "company"
+ "title_field": "company",
+ "track_changes": 1
 }

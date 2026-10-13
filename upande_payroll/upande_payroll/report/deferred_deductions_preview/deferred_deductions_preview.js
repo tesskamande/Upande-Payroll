@@ -16,6 +16,25 @@ frappe.query_reports["Deferred Deductions Preview"] = {
 			label: __("Payroll Entry"),
 			fieldtype: "Link",
 			options: "Payroll Entry",
+			get_query: () => ({
+				filters: { company: frappe.query_report.get_filter_value("company") },
+			}),
+			// Pick a run and its period comes with it - same pattern as Payroll
+			// Register's own payroll_entry filter.
+			on_change: () => {
+				const run = frappe.query_report.get_filter_value("payroll_entry");
+				if (!run) return;
+				frappe.db
+					.get_value("Payroll Entry", run, ["company", "start_date", "end_date"])
+					.then(({ message }) => {
+						if (!message) return;
+						frappe.query_report.set_filter_value({
+							company: message.company,
+							from_date: message.start_date,
+							to_date: message.end_date,
+						});
+					});
+			},
 		},
 		{
 			fieldname: "from_date",

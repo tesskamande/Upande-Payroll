@@ -48,7 +48,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "description": "Higher number gives way first.",
    "fieldname": "priority",
    "fieldtype": "Int",
    "in_list_view": 1,

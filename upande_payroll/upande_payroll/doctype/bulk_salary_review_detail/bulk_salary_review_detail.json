@@ -1,0 +1,102 @@
+{
+ "actions": [],
+ "creation": "2026-10-12 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "department",
+  "col_1",
+  "current_basic_pay",
+  "increment_amount",
+  "increment_percent",
+  "col_2",
+  "proposed_basic_pay",
+  "salary_review"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "employee.employee_name",
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Employee Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "employee.department",
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department",
+   "options": "Department",
+   "read_only": 1
+  },
+  {
+   "fieldname": "col_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "What the employee is currently earning.",
+   "fetch_from": "employee.basic_pay",
+   "fetch_if_empty": 1,
+   "fieldname": "current_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Current Basic Pay",
+   "read_only": 1
+  },
+  {
+   "fieldname": "increment_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Increment Amount"
+  },
+  {
+   "fieldname": "increment_percent",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Increment %"
+  },
+  {
+   "fieldname": "col_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "proposed_basic_pay",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Proposed Basic Pay"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "The individual Salary Review this row's submission created.",
+   "fieldname": "salary_review",
+   "fieldtype": "Link",
+   "label": "Salary Review",
+   "no_copy": 1,
+   "options": "Salary Review",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-10-12 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Upande Payroll",
+ "name": "Bulk Salary Review Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

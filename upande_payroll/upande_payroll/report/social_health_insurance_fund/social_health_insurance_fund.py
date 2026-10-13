@@ -8,11 +8,11 @@ from upande_payroll.statutory_reports import build
 SPEC = {
 	"title": _("Social Health Insurance Fund"),
 	"employee_keys": ("shif",),
-	# Column order and naming follow the SHA portal's own upload template
-	# (Payroll No, Firstname, Lastname, Identity Type, ID No, KRA PIN, SHA
-	# No, Contribution Amount, Phone) so this can be filed straight from the
-	# report; Gross/Basic Salary trail after as this app's own extra context,
-	# not part of what SHA itself asks for.
+	# Column order and naming match the SHA portal's own upload template
+	# exactly (Payroll No, Firstname, Lastname, Identity Type, ID No, KRA
+	# PIN, SHA No, Contribution Amount, Phone) and nothing else - this is
+	# filed straight from the report, so an extra column is something that
+	# has to be stripped by hand before every single upload.
 	"columns": [
 		("employee_number", _("Payroll No"), "Data", 120),
 		("other_name", _("Firstname"), "Data", 180),
@@ -23,8 +23,6 @@ SPEC = {
 		("sha_no", _("SHA No"), "Data", 150),
 		("member_contribution", _("Contribution Amount"), "Currency", 170),
 		("phone", _("Phone"), "Data", 130),
-		("gross_salary", _("Gross Salary"), "Currency", 180),
-		("basic_salary", _("Basic Salary"), "Currency", 150),
 	],
 }
 

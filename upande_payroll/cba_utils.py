@@ -1,6 +1,71 @@
 import frappe
 from frappe import _
-from frappe.utils import add_months, cint, flt, getdate, now
+from frappe.utils import add_days, add_months, cint, flt, getdate, now
+
+
+def generate_payroll_periods(doc, method=None):
+	"""Fill in this Payroll Period's own monthly cycles, so nobody has to type
+	start_date/end_date pairs by hand every month.
+
+	Only for a company that operates under a CBA at all - the cycles exist
+	purely for run_job_category_progressions()'s own pause/resume mechanism,
+	and a company with none has nothing reading them. Guided by Company
+	Payroll Settings' own CBA Applicable rather than whether a CBA document
+	happens to be submitted right now - a company setting up its Payroll
+	Period ahead of finishing its first CBA should not be denied the cycles
+	it will need the moment that CBA is ready.
+
+	Existing rows are left exactly alone - a cycle already ticked CBA Cleared
+	must never be silently regenerated and lose it. Matched by whether some
+	row already SPANS a candidate cycle, not by an exact (start, end) match:
+	a row a person has reshaped by hand - merging two of these monthly
+	cycles into one after a correction, say - still accounts for both, and
+	must not have the two originals silently added back underneath it on
+	the next save.
+
+	A freshly generated cycle that a submitted Payroll Entry already covers
+	is created already ticked CBA Cleared. Without this, turning CBA
+	Applicable on for a company with payroll history older than this
+	mechanism - or widening a Payroll Period's range back over months
+	already paid - would back-fill cycles nobody ever had the chance to
+	clear, and run_job_category_progressions() would read the oldest of
+	them as still open and pause every future promotion at that company
+	until each old month is ticked by hand. Matched by any overlap rather
+	than exact dates, since a company's real cycles do not have to land on
+	calendar-month boundaries (20th-to-19th, say) the way these generated
+	ones do.
+	"""
+	if not (doc.start_date and doc.end_date):
+		return
+	if not frappe.db.get_value("Company Payroll Settings", doc.company, "cba_applicable"):
+		return
+
+	existing = [(getdate(r.start_date), getdate(r.end_date)) for r in doc.periods]
+
+	cycle_start = getdate(doc.start_date)
+	overall_end = getdate(doc.end_date)
+	while cycle_start <= overall_end:
+		cycle_end = min(add_days(add_months(cycle_start, 1), -1), overall_end)
+		if not _spanned_by_existing_row(cycle_start, cycle_end, existing):
+			row = doc.append("periods", {"start_date": cycle_start, "end_date": cycle_end})
+			if _payroll_already_covers(doc.company, cycle_start, cycle_end):
+				row.custom_cba_cleared = 1
+		cycle_start = add_days(cycle_end, 1)
+
+
+def _spanned_by_existing_row(start, end, existing_ranges):
+	"""Whether some existing Payroll Period Date row already overlaps this span."""
+	return any(r_start <= end and start <= r_end for r_start, r_end in existing_ranges)
+
+
+def _payroll_already_covers(company, start, end):
+	"""Whether a submitted Payroll Entry already accounts for this span."""
+	return bool(frappe.db.exists("Payroll Entry", {
+		"company": company,
+		"docstatus": 1,
+		"start_date": ("<=", end),
+		"end_date": (">=", start),
+	}))
 
 
 def validate_basic_pay_against_cba(doc, method=None):
@@ -363,6 +428,52 @@ def progression_rules(company, as_on=None):
 	return cba, rules
 
 
+def _unresolved_payroll_cycle(company, as_on=None):
+	"""The oldest payroll cycle for this company that has ended and is not
+	yet marked CBA Cleared, or None where there is none.
+
+	Payroll Period Date rows are company-specific only through their parent
+	Payroll Period, hence the join. ``end_date < as_on`` is the cycle having
+	fully ended - the night of its last day, not the day itself, matches how
+	a cycle is still live through its own final day.
+	"""
+	row = frappe.db.sql(
+		"""
+		select pp.company, ppd.start_date, ppd.end_date, ppd.parent as payroll_period
+		from `tabPayroll Period Date` ppd
+		join `tabPayroll Period` pp on pp.name = ppd.parent
+		where pp.company = %(company)s
+			and ppd.end_date < %(as_on)s
+			and ifnull(ppd.custom_cba_cleared, 0) = 0
+		order by ppd.end_date asc
+		limit 1
+		""",
+		{"company": company, "as_on": getdate(as_on or getdate())},
+		as_dict=True,
+	)
+	return row[0] if row else None
+
+
+def clear_cba_pause_for_payroll_entry(doc, method=None):
+	"""Tick CBA Cleared on whichever cycle this Payroll Entry just closed out.
+
+	Matched on company and exact dates rather than any overlap - a Payroll
+	Entry is expected to run for precisely one cycle, and a looser match could
+	clear a cycle this run never actually covered.
+	"""
+	frappe.db.sql(
+		"""
+		update `tabPayroll Period Date` ppd
+		join `tabPayroll Period` pp on pp.name = ppd.parent
+		set ppd.custom_cba_cleared = 1
+		where pp.company = %(company)s
+			and ppd.start_date = %(start_date)s
+			and ppd.end_date = %(end_date)s
+		""",
+		{"company": doc.company, "start_date": doc.start_date, "end_date": doc.end_date},
+	)
+
+
 @frappe.whitelist()
 def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 	"""Move everyone who has served long enough into their next category.
@@ -385,7 +496,22 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 	)
 
 	moved = []
+	skipped = []
+	paused = []
 	for co in [c for c in companies if c]:
+		unresolved_cycle = _unresolved_payroll_cycle(co, as_on)
+		if unresolved_cycle:
+			# A cycle this company has not yet accounted for - submitted, or
+			# cleared by hand for a parallel run that never submits at all -
+			# has already ended. A promotion landing now would get baked into
+			# that cycle's eventual payroll by get_data_for_eval() reading
+			# live data the moment it is finally created, crediting a period
+			# with a raise that was never due yet for it. Held back entirely,
+			# company-wide, until that specific cycle's own CBA Cleared is
+			# ticked - a later cycle still open does not block this one.
+			paused.append({"company": co, **unresolved_cycle})
+			continue
+
 		cba, rules = progression_rules(co, as_on)
 		if not rules:
 			continue
@@ -405,7 +531,19 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 
 			previous_pay = flt(emp.basic_pay)
 			agreed_rate = get_cba_agreed_rate(cba.name, to_category)
-			new_pay = max(previous_pay, flt(agreed_rate)) if agreed_rate is not None else previous_pay
+			if agreed_rate is None:
+				# No pay-table row for the destination category: moving the
+				# category without a rate to validate against is exactly what
+				# validate_basic_pay_against_cba exists to prevent, so this is
+				# left alone rather than promoted with pay unchanged - a data
+				# gap, not a promotion that happens to cost nothing.
+				skipped.append({
+					"employee": emp.name, "employee_name": emp.employee_name,
+					"from": emp.job_category, "to": to_category, "since": str(since),
+					"reason": f"no CBA Pay Table row exists for {to_category}",
+				})
+				continue
+			new_pay = max(previous_pay, agreed_rate)
 
 			moved.append({
 				"employee": emp.name, "employee_name": emp.employee_name,
@@ -443,5 +581,43 @@ def run_job_category_progressions(company=None, as_on=None, dry_run=0):
 
 	if not dry_run and moved:
 		frappe.db.commit()
-	return moved
+
+	if skipped:
+		# This runs daily off the scheduler with nobody watching, so a
+		# msgprint here would never be seen - log_error is what actually
+		# surfaces it later, to whoever next looks, regardless of who or
+		# what triggered this run.
+		frappe.log_error(
+			title="CBA Progression Skipped",
+			message="\n".join(
+				f"{s['employee_name']} ({s['employee']}): {s['from']} -> {s['to']}, "
+				f"due since {s['since']} - {s['reason']}."
+				for s in skipped
+			),
+		)
+		if dry_run:
+			frappe.msgprint(
+				_("{0} employee(s) are due to move category but were left alone: {1}.").format(
+					len(skipped),
+					", ".join(f"{s['employee_name']} -> {s['to']} ({s['reason']})" for s in skipped),
+				),
+				title=_("Promotions Skipped"), indicator="orange",
+			)
+
+	if paused and dry_run:
+		# Not logged as an error on the daily run - an unresolved cycle is
+		# routine, expected, by-design behaviour for however long that
+		# company's own reconciliation (or parallel run) takes, not a data
+		# gap to investigate.
+		frappe.msgprint(
+			_("No promotions were checked for: {0}.").format(
+				", ".join(
+					f"{p['company']} (cycle {p['start_date']} - {p['end_date']} not yet CBA Cleared)"
+					for p in paused
+				),
+			),
+			title=_("Companies Paused - Payroll Cycle Not Cleared"), indicator="blue",
+		)
+
+	return {"moved": moved, "skipped": skipped, "paused": paused}
 

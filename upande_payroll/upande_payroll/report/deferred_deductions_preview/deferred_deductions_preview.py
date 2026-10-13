@@ -25,11 +25,19 @@ def execute(filters=None):
 	if not filters.get("company"):
 		frappe.throw(_("Please select a Company."))
 
+	# The loan instalment/arrears columns this reads off Salary Slip Loan
+	# (custom_scheduled_payment and the rest) are loan_customizations' own
+	# fields, not upande_payroll's - on a payroll-only site without it, the
+	# columns don't exist at all, and querying them would throw a raw SQL
+	# error rather than just showing a report with no loan rows in it.
+	has_loans = "loan_customizations" in frappe.get_installed_apps()
+
 	slips = get_slips(filters)
 	rows = []
 	for slip in slips:
 		rows.extend(get_component_rows(slip))
-		rows.extend(get_loan_rows(slip))
+		if has_loans:
+			rows.extend(get_loan_rows(slip))
 
 	return get_columns(), rows, None, None, get_summary(rows)
 

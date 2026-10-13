@@ -107,7 +107,7 @@ class DeductionPriority(Document):
 			if row.deduction_group and row.deduction_group not in groups:
 				groups[row.deduction_group] = frappe.db.get_value(
 					"Deduction Group", row.deduction_group,
-					["priority", "tie_breaker", "group_name"], as_dict=True
+					["priority", "tie_breaker", "group_name", "reducible"], as_dict=True
 				) or frappe._dict()
 
 		bands = {}
@@ -115,6 +115,17 @@ class DeductionPriority(Document):
 			if not row.deduction_group:
 				continue
 			group = groups[row.deduction_group]
+			# A group that is never trimmed never ties with anything over a
+			# cut - there is nothing for a method to decide. Leaving the
+			# column blank here says that plainly; the alternative is the
+			# "or Pro-rata" fallback below answering a question that was
+			# never asked, for a deduction that will never actually be
+			# reduced (statutory components in particular - see
+			# validate_statutory_not_reducible - are only ever allowed in a
+			# group with this cleared).
+			if not group.reducible:
+				row.effective_tie_breaker = None
+				continue
 			rank = cint(row.override_priority) or cint(group.priority)
 			bands.setdefault(rank, []).append(row)
 

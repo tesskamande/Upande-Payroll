@@ -27,10 +27,16 @@ frappe.ui.form.on("Leave Encashment", {
 			"leave_encashment_divisor",
 		]).then((r) => {
 			if (!r.message || !r.message.enable_leave_encashment_calculation) return;
-			const divisor = r.message.leave_encashment_divisor || 26;
+			const divisor = flt(r.message.leave_encashment_divisor);
+			// No fabricated preview when either figure is missing - the server
+			// throws in both cases rather than falling back, so a guessed
+			// number here would just contradict the error the save is about
+			// to show.
+			if (!divisor) return;
 
 			frappe.db.get_value("Employee", frm.doc.employee, "basic_pay").then((e) => {
-				const basic_pay = (e.message && e.message.basic_pay) || 0;
+				const basic_pay = e.message && flt(e.message.basic_pay);
+				if (!basic_pay) return;
 				const days = frm.doc.encashment_days || 0;
 				frm.set_value("encashment_amount", Math.round((basic_pay / divisor) * days * 100) / 100);
 			});

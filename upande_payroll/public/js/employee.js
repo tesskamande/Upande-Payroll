@@ -15,6 +15,16 @@ const COMPANY_SETTING_RULES = [
 		setting: "gross_pay_account_method",
 		show_when: ["Per Employee"],
 	},
+	// CBA Applicable is a stable fact about the company (does it bargain
+	// collectively at all), not whether a particular CBA document happens to
+	// be submitted right now - a company between agreements, or one not yet
+	// finished drafting its first, should not have Job Category flicker out
+	// of view just because nothing is submitted at this exact moment.
+	{
+		field: "job_category",
+		setting: "cba_applicable",
+		show_when: [1],
+	},
 ];
 
 frappe.ui.form.on("Employee", {
