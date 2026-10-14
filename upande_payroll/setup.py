@@ -199,6 +199,7 @@ WORKSPACE_CARDS = [
 		"Employee Tax History",
 		"CBA",
 		"Salary Review",
+		"CBA Application Log",
 	]),
 	("Kenya Statutory Reports", "Report", [
 		"Company Register",
@@ -213,7 +214,6 @@ WORKSPACE_CARDS = [
 		"Payroll GL Reconciliation",
 		"Leave Liability",
 		"Salary Review",
-		"CBA Application Log",
 	]),
 ]
 
@@ -231,8 +231,25 @@ def add_to_payroll_workspace():
 	if not workspace:
 		return
 
-	present = {(row.type, row.label) for row in workspace.links}
 	changed = False
+
+	# A link this function added under one card, later moved to another with
+	# the correct link_type (Report vs DocType), leaves its old row behind -
+	# the add-if-missing loop below only ever adds, so a stale one sits there
+	# forever and fails _validate_links() on every single future migrate,
+	# not just this one. Only rows naming one of this function's own targets
+	# are touched, never anything else on the workspace.
+	own_targets = {t for _, _, targets in WORKSPACE_CARDS for t in targets}
+	stale = [
+		row for row in workspace.links
+		if row.type == "Link" and row.label in own_targets
+		and not frappe.db.exists(row.link_type, row.link_to)
+	]
+	for row in stale:
+		workspace.links.remove(row)
+		changed = True
+
+	present = {(row.type, row.label) for row in workspace.links}
 
 	for card, link_type, targets in WORKSPACE_CARDS:
 		# Only what actually exists on this site. A site without the lending app,
