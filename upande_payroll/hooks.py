@@ -31,6 +31,12 @@ fixtures = [
 				"custom_opt_out_of_nssf", "custom_opt_out_of_shif",
 				"custom_opt_out_of_housing_levy",
 				"custom_salary_expense_account",
+				# Hidden mirror of Company Payroll Settings.personal_relief_method,
+				# kept in sync on validate - see
+				# kenya_statutory_calculator.sync_personal_relief_method(). Exists
+				# only so the opening balance field below can depend on it; a
+				# Flat Monthly company never reads the opening balance itself.
+				"custom_personal_relief_method",
 				"custom_personal_relief_opening_balance",
 				"union_membership_section", "union_member",
 				"payroll_earnings_section", "payroll_deductions_section",
@@ -76,14 +82,6 @@ fixtures = [
 			["dt", "=", "Salary Slip"],
 			["fieldname", "in", [
 				"custom_personal_relief_method",
-				# Frozen at creation, never re-fetched - see SalarySlipMixin.
-				# A Draft can sit un-submitted for weeks before this app's own
-				# review workflow clears it; Basic Pay has no dated history of
-				# its own (it lives on Employee as a single current-state
-				# field), so without this, re-saving an old Draft after a CBA
-				# promotion or a manual raise would silently apply tomorrow's
-				# rate to a period that already closed.
-				"custom_basic_pay_snapshot",
 				"custom_personal_relief_section", "custom_personal_relief_brought_forward",
 				"custom_tax_charged",
 				"custom_personal_relief_available_this_month", "custom_personal_relief_carried_forward",
@@ -371,7 +369,10 @@ doctype_list_js = {
 
 doc_events = {
 	"Employee": {
-		"validate": "upande_payroll.cba_utils.validate_basic_pay_against_cba",
+		"validate": [
+			"upande_payroll.cba_utils.validate_basic_pay_against_cba",
+			"upande_payroll.kenya_statutory_calculator.sync_personal_relief_method",
+		],
 	},
 	"Gratuity": {
 		"validate": "upande_payroll.gratuity_utils.calculate_gratuity",

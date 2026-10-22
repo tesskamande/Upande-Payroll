@@ -24,16 +24,20 @@ def create_lta(doc, method=None):
 	if doc.leave_type != cfg.lta_leave_type:
 		return
 
+	grade, department = _employee_grade_department(doc.employee)
+	if _is_blocked(cfg, grade, department):
+		return
+
 	allocation = _covering_allocation(doc, cfg)
 	if not allocation:
 		return
 
-	minimum = flt(cfg.lta_minimum_days)
+	amount, minimum = _lta_terms(cfg, grade, department)
 	taken = _days_taken(doc, cfg, allocation)
 	if taken < minimum:
 		return
 
-	blocker = _already_paid(doc, cfg, allocation)
+	blocker = _already_paid(doc, cfg, allocation, minimum)
 	if blocker:
 		frappe.msgprint(blocker, title=_("Leave Travelling Allowance Not Created"),
 						indicator="orange")
@@ -44,7 +48,7 @@ def create_lta(doc, method=None):
 		"employee": doc.employee,
 		"company": doc.company,
 		"salary_component": cfg.lta_salary_component,
-		"amount": flt(cfg.lta_amount),
+		"amount": amount,
 		"payroll_date": doc.posting_date,
 		"overwrite_salary_structure_amount": 0,
 		"ref_doctype": "Leave Application",
@@ -60,7 +64,7 @@ def create_lta(doc, method=None):
 	frappe.msgprint(
 		_("{0} of {1} created for {2}, payable {3}. {4} of {5} qualifying days taken.").format(
 			cfg.lta_salary_component,
-			frappe.format_value(flt(cfg.lta_amount), {"fieldtype": "Currency"}),
+			frappe.format_value(amount, {"fieldtype": "Currency"}),
 			doc.employee_name, doc.posting_date, taken, minimum),
 		title=_("Leave Travelling Allowance Created"), indicator="green")
 
@@ -94,7 +98,9 @@ def cancel_lta(doc, method=None):
 
 	# on_cancel runs with docstatus already 2, so this application is out of the
 	# count; excluding it by name as well keeps that independent of ordering.
-	if _days_taken(doc, cfg, allocation, include_self=False) >= flt(cfg.lta_minimum_days):
+	grade, department = _employee_grade_department(doc.employee)
+	_, minimum = _lta_terms(cfg, grade, department)
+	if _days_taken(doc, cfg, allocation, include_self=False) >= minimum:
 		return
 
 	siblings = [row.name for row in _period_applications(doc, cfg, allocation, exclude=doc.name)]
@@ -121,6 +127,58 @@ def _config(company):
 	if not (settings.lta_leave_type and settings.lta_salary_component):
 		return None
 	return settings
+
+
+def _employee_grade_department(employee):
+	"""Fetched once per Leave Application event and passed down, rather than
+	re-queried by each of _is_blocked() and _lta_terms() separately - neither
+	can change mid-event, so a second and third lookup for the same event
+	would just be repeat traffic for data already in hand."""
+	return frappe.db.get_value("Employee", employee, ["grade", "department"]) or (None, None)
+
+
+def _matching_row(rows, grade, department, label):
+	"""The one row (if any) whose Grade or Department matches this employee.
+
+	Each row names exactly one of the two (company_payroll_settings.py's
+	_validate_lta_table enforces that, the same shape as Deduction Priority
+	Detail's Salary Component/Loan Product pair) - but nothing stops a
+	Grade-keyed row and a Department-keyed row from both naming this same
+	employee, one by each field, since that can only be known once it is
+	checked against a real employee rather than at save time. Raised here
+	rather than resolved by picking one, because picking one silently is
+	exactly the bug this used to have."""
+	matches = [
+		row for row in (rows or [])
+		if (row.employee_grade and row.employee_grade == grade)
+		or (row.department and row.department == department)
+	]
+	if len(matches) > 1:
+		frappe.throw(_(
+			"{0} has more than one matching row in {1} - one by Grade, one by "
+			"Department. Remove one of them before this can be resolved."
+		).format(grade or department, label))
+	return matches[0] if matches else None
+
+
+def _is_blocked(cfg, grade, department):
+	"""Whether this employee's Grade or Department is named in LTA Not
+	Available To - checked before anything else, so a blocked employee's
+	leave is never even weighed against the qualifying minimum."""
+	return _matching_row(cfg.lta_blocked_grades_departments, grade, department, _("LTA Not Available To")) is not None
+
+
+def _lta_terms(cfg, grade, department):
+	"""The Amount and Minimum Leave Days this employee's LTA actually runs on -
+	their own Grade/Department override if Company Payroll Settings has one
+	for them, the company-wide figures otherwise. A matching row's own
+	Minimum Leave Days still falls back to the company-wide figure when left
+	blank - only the Amount is mandatory on a row.
+	"""
+	best = _matching_row(cfg.lta_amount_overrides, grade, department, _("LTA Amount by Grade or Department"))
+	amount = flt(best.amount) if best else flt(cfg.lta_amount)
+	minimum = flt(best.minimum_days) if best and best.minimum_days else flt(cfg.lta_minimum_days)
+	return amount, minimum
 
 
 def _covering_allocation(doc, cfg):
@@ -165,8 +223,13 @@ def _days_taken(doc, cfg, allocation, include_self=True):
 	return flt(total, 2)
 
 
-def _already_paid(doc, cfg, allocation):
+def _already_paid(doc, cfg, allocation, minimum):
 	"""Returns a message if this period is already accounted for, else None.
+
+	``minimum`` is the caller's own already-computed _lta_terms() result,
+	passed in rather than recomputed here - create_lta() has it in hand the
+	moment this is called, and a second lookup for the same employee in the
+	same event would only be repeat traffic.
 
 	An allowance this code raised is matched by the leave application it points
 	at, not by its payroll date: the payroll date follows the leave
@@ -201,10 +264,10 @@ def _already_paid(doc, cfg, allocation):
 	# leave. Only submitted applications count, so cancelling the leave itself
 	# does release the entitlement, which is the one case that should.
 	taken = flt(sum(flt(row.total_leave_days) for row in period), 2)
-	if taken >= flt(cfg.lta_minimum_days):
+	if taken >= minimum:
 		return _("{0} has already taken {1} of {2} qualifying days in {3} to {4}, "
 				 "so the allowance for this period has been earned.").format(
-			doc.employee_name, taken, flt(cfg.lta_minimum_days),
+			doc.employee_name, taken, minimum,
 			allocation.from_date, allocation.to_date)
 
 	own = set(names)

@@ -73,7 +73,7 @@
   "columns": 0,
   "default": null,
   "depends_on": null,
-  "description": "KRA certificates run 3-5 years and must be renewed - a payslip past this date stops applying the exemption.",
+  "description": null,
   "docstatus": 0,
   "doctype": "Custom Field",
   "dt": "Employee Tax Exemption Proof Submission",

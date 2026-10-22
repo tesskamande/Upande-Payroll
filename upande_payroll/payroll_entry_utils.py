@@ -27,6 +27,50 @@ class PayrollEntryMixin:
 	here or it never reaches the query.
 	"""
 
+	@frappe.whitelist()
+	def get_employees_with_unmarked_attendance(self):
+		"""Same check as HRMS core (payroll_entry.py), but resolving each
+		employee's Holiday List through Holiday List Assignment instead of
+		the Employee.holiday_list field core still reads. That field is
+		hidden in the UI unconditionally (hrms/public/js/erpnext/employee.js,
+		Employee.refresh), so nothing can set it from the form any more -
+		core's version therefore overcounts unmarked days for anyone whose
+		holiday list only exists through the newer doctype. before_submit()
+		throws on a non-empty result from this method, so core's version was
+		blocking real submissions on days that were never actually unmarked.
+		"""
+		if not self.validate_attendance:
+			return
+
+		from upande_payroll.holiday_list_utils import count_holidays_in_range, get_effective_holiday_ranges, get_holiday_dates
+
+		unmarked_attendance = []
+		employee_details = self.get_employee_and_attendance_details()
+		employees = [emp.employee for emp in self.employees]
+		holiday_ranges = get_effective_holiday_ranges(employees, self.company, self.start_date, self.end_date)
+		holiday_dates = get_holiday_dates(holiday_ranges, self.start_date, self.end_date)
+
+		for emp in self.employees:
+			details = next((record for record in employee_details if record.name == emp.employee), None)
+			if not details:
+				continue
+
+			start_date, end_date = self.get_payroll_dates_for_employee(details)
+			holidays = count_holidays_in_range(
+				holiday_ranges.get(emp.employee, []), holiday_dates, start_date, end_date
+			)
+			payroll_days = frappe.utils.date_diff(end_date, start_date) + 1
+			unmarked_days = payroll_days - (holidays + details.attendance_count)
+
+			if unmarked_days > 0:
+				unmarked_attendance.append({
+					"employee": emp.employee,
+					"employee_name": emp.employee_name,
+					"unmarked_days": unmarked_days,
+				})
+
+		return unmarked_attendance
+
 	def get_salary_slip_details(self, for_withheld_salaries=False):
 		"""The rows the bank entry is worked out from, without the employer's
 		own contributions.

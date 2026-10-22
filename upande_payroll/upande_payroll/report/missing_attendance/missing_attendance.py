@@ -7,19 +7,58 @@ Attendance Sheet, so the gaps are something to scan across a row rather than
 read out of 1500+ individual lines. Only employees with at least one gap get
 a row at all - an employee with a clean month doesn't take up space here.
 
-"Missing" here means exactly what hrms's own
-payroll_entry.get_employees_with_unmarked_attendance() means by it: no
-submitted Attendance record for that employee on that date, and the date is
-not a holiday on whichever Holiday List applies to that employee (their own,
-or the company's default). A day explicitly marked Absent is not missing -
-it is marked, same as Present or On Leave are.
+Every cell carries a label, not just the missing ones - a blank cell on its
+own does not say whether the day was Present, a weekly off, or just never
+looked at, and that distinction is exactly what somebody reading this report
+needs. "X" means missing: no submitted Attendance record for that employee on
+that date, and the date is not a holiday on whichever Holiday List applies to
+them on it. Everything else uses the same P/A/HD/L/WFH/H/WO abbreviations as
+HRMS's own Monthly Attendance Sheet, so a day explicitly marked Absent reads
+as "A", not blank - it is marked, same as Present or On Leave are, just not
+the thing this report exists to find. A day before someone joined or after
+they left is "-": never theirs to mark, not a gap of any kind.
+
+The holiday list is resolved through Holiday List Assignment, not the old
+Employee.holiday_list field - HRMS hides that field in the UI unconditionally
+(hrms/public/js/erpnext/employee.js, Employee.refresh), so nobody can actually
+set it from the form any more, whatever the field still looks like in the
+doctype's own schema. A Holiday List Assignment is date-ranged: an employee
+can have no assignment, one covering the whole period, or several in
+sequence, and the company's own assignment (also via Holiday List Assignment,
+keyed on the company's name instead of an employee's) fills any date the
+employee has none for - same precedence hrms.utils.holiday_list.
+get_holiday_list_for_employee() uses, just resolved for every employee in the
+Payroll Entry at once rather than one at a time.
+
+hrms's own payroll_entry.get_employees_with_unmarked_attendance() has not
+been updated to this yet - it still reads the hidden Employee.holiday_list
+field, so a Holiday List Assignment currently has no effect on Payroll
+Entry's own "Validate Attendance" check at all. This report no longer claims
+to mirror it exactly for that reason.
 """
 
 import frappe
 from frappe import _
 from frappe.utils import add_days, getdate
 
+from upande_payroll.holiday_list_utils import (
+	get_effective_holiday_ranges,
+	get_holiday_dates,
+	holiday_list_for_date,
+)
+
 DAY_ABBR = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+# Same abbreviations and meanings as hrms's Monthly Attendance Sheet
+# (hrms/hr/report/monthly_attendance_sheet/monthly_attendance_sheet.py,
+# status_map), so a label here means the same thing it does there.
+STATUS_ABBR = {
+	"Present": "P",
+	"Absent": "A",
+	"Half Day": "HD",
+	"On Leave": "L",
+	"Work From Home": "WFH",
+}
 
 
 def execute(filters=None):
@@ -36,11 +75,9 @@ def execute(filters=None):
 		return columns, [], None, None, get_summary([])
 
 	emp_details = get_employee_details(employees)
-	default_holiday_list = frappe.db.get_value(
-		"Company", entry.company, "default_holiday_list", cache=True
-	)
-	holiday_dates = get_holiday_dates(emp_details, default_holiday_list, entry.start_date, entry.end_date)
-	attendance_dates = get_attendance_dates(employees, entry.start_date, entry.end_date)
+	holiday_ranges = get_effective_holiday_ranges(employees, entry.company, entry.start_date, entry.end_date)
+	holiday_dates = get_holiday_dates(holiday_ranges, entry.start_date, entry.end_date)
+	attendance_status = get_attendance_status(employees, entry.start_date, entry.end_date)
 
 	rows = []
 	for employee in employees:
@@ -53,9 +90,8 @@ def execute(filters=None):
 			continue
 
 		start_date, end_date = get_employee_date_range(entry, details)
-		holiday_list = details.holiday_list or default_holiday_list
-		holidays = holiday_dates.get(holiday_list, set())
-		marked = attendance_dates.get(employee, set())
+		ranges = holiday_ranges.get(employee, [])
+		marked = attendance_status.get(employee, {})
 
 		row = {
 			"employee": employee,
@@ -65,11 +101,23 @@ def execute(filters=None):
 		missing_days = 0
 		for d in period_dates:
 			fieldname = d.strftime("%d-%m-%Y")
-			if start_date <= d <= end_date and d not in holidays and d not in marked:
-				row[fieldname] = "X"
-				missing_days += 1
-			else:
-				row[fieldname] = ""
+			if d < start_date or d > end_date:
+				row[fieldname] = "-"
+				continue
+
+			status = marked.get(d)
+			if status:
+				row[fieldname] = STATUS_ABBR.get(status, status)
+				continue
+
+			holiday_list = holiday_list_for_date(ranges, d)
+			is_weekly_off = holiday_dates.get(holiday_list, {}).get(d) if holiday_list else None
+			if is_weekly_off is not None:
+				row[fieldname] = "WO" if is_weekly_off else "H"
+				continue
+
+			row[fieldname] = "X"
+			missing_days += 1
 
 		if not missing_days:
 			continue
@@ -77,7 +125,7 @@ def execute(filters=None):
 		rows.append(row)
 
 	rows.sort(key=lambda r: (-r["missing_days"], r["employee"]))
-	return columns, rows, None, None, get_summary(rows)
+	return columns, rows, get_message(), None, get_summary(rows)
 
 
 def get_dates_in_period(start_date, end_date):
@@ -108,32 +156,12 @@ def get_employee_details(employees):
 	rows = frappe.get_all(
 		"Employee",
 		filters={"name": ["in", employees]},
-		fields=["name", "employee_name", "department", "date_of_joining", "relieving_date", "holiday_list"],
+		fields=["name", "employee_name", "department", "date_of_joining", "relieving_date"],
 	)
 	return {row.name: row for row in rows}
 
 
-def get_holiday_dates(emp_details, default_holiday_list, start_date, end_date):
-	holiday_lists = {d.holiday_list or default_holiday_list for d in emp_details.values()}
-	holiday_lists.discard(None)
-	if not holiday_lists:
-		return {}
-
-	rows = frappe.get_all(
-		"Holiday",
-		filters={
-			"parent": ["in", list(holiday_lists)],
-			"holiday_date": ["between", [start_date, end_date]],
-		},
-		fields=["parent", "holiday_date"],
-	)
-	dates_by_list = {}
-	for row in rows:
-		dates_by_list.setdefault(row.parent, set()).add(getdate(row.holiday_date))
-	return dates_by_list
-
-
-def get_attendance_dates(employees, start_date, end_date):
+def get_attendance_status(employees, start_date, end_date):
 	rows = frappe.get_all(
 		"Attendance",
 		filters={
@@ -141,12 +169,26 @@ def get_attendance_dates(employees, start_date, end_date):
 			"attendance_date": ["between", [start_date, end_date]],
 			"docstatus": 1,
 		},
-		fields=["employee", "attendance_date"],
+		fields=["employee", "attendance_date", "status"],
 	)
-	dates_by_employee = {}
+	status_by_employee = {}
 	for row in rows:
-		dates_by_employee.setdefault(row.employee, set()).add(getdate(row.attendance_date))
-	return dates_by_employee
+		status_by_employee.setdefault(row.employee, {})[getdate(row.attendance_date)] = row.status
+	return status_by_employee
+
+
+def get_message():
+	legend = {
+		"X": ("Missing", "red"), "P": ("Present", "green"), "A": ("Absent", "red"),
+		"HD": ("Half Day", "orange"), "L": ("On Leave", "#3187D8"),
+		"WFH": ("Work From Home", "#914EE3"), "H": ("Holiday", "#878787"),
+		"WO": ("Weekly Off", "#878787"), "-": ("Not Yet Employed / Left", "#878787"),
+	}
+	return "".join(
+		f"""<span style='border-left: 2px solid {colour}; padding-right: 12px;
+			padding-left: 5px; margin-right: 3px;'>{_(label)} - {abbr}</span>"""
+		for abbr, (label, colour) in legend.items()
+	)
 
 
 def get_summary(rows):

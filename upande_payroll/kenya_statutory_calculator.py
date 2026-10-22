@@ -226,6 +226,27 @@ def apply_regional_deductions(doc):
 	_set_amount(doc, comp.nita, flt(kenya_settings.nita_amount), allowed, by_formula)
 
 
+def sync_personal_relief_method(doc, method=None):
+	"""Mirror the company's Personal Relief Method onto the Employee, hidden.
+
+	Employee's own custom_personal_relief_opening_balance only means anything
+	under Carry Forward (Annual Cap) - a Flat Monthly company never reads it
+	(see _relief_opening_balance() below, only ever called from that branch).
+	Hiding the field needs something on this doc to depend_on, and Employee
+	has no link to Company Payroll Settings to fetch_from - so it is mirrored
+	here instead, the same way apply_regional_deductions() mirrors it onto
+	Salary Slip for its own carry-forward section.
+
+	Only as current as the last time this Employee was saved - Company
+	Payroll Settings changing its method does not reach back and update
+	everyone on that company. Acceptable because nothing calculates off this
+	copy: the real figure is read fresh from Company Payroll Settings at
+	payroll time, this one only decides whether a form field is visible.
+	"""
+	settings = payroll_settings(doc.company)
+	doc.custom_personal_relief_method = settings.personal_relief_method if settings else ""
+
+
 # ----------------------------------------------------------------------
 # NSSF
 # ----------------------------------------------------------------------
@@ -564,11 +585,21 @@ def get_statutory_components(settings=None):
 def _remove_managed_components(salary_slip, settings=None):
 	"""Clean up stale rows from a prior calculation if statutory deduction
 	calculation gets disabled for this company (or Kenya Payroll Settings
-	itself) after having previously been on."""
+	itself) after having previously been on.
+
+	Only strips a managed-named row the slip's own Salary Structure does NOT
+	list as a deduction. A company running its statutory deductions through
+	structure formulas instead of this calculator names its own components
+	however it likes, and some names collide with this app's own. Deleting on
+	name alone would take the structure's own calculated result with it the
+	moment the calculator is off - exactly backwards, since a structure's
+	formula is what a company actually asked for, and this app is only here
+	to clean up ITS OWN leftovers, not the structure's."""
 	managed = set(STATUTORY_COMPONENTS.values())
+	structure_rows = _get_structure_deduction_components(salary_slip).allowed
 	salary_slip.deductions = [
 		r for r in (salary_slip.deductions or [])
-		if r.salary_component not in managed
+		if r.salary_component not in managed or r.salary_component in structure_rows
 	]
 
 

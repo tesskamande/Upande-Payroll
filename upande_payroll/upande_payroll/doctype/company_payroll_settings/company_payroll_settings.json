@@ -25,6 +25,10 @@
   "column_break_lta",
   "lta_amount",
   "lta_minimum_days",
+  "lta_tables_section",
+  "lta_amount_overrides",
+  "column_break_lta_tables",
+  "lta_blocked_grades_departments",
   "gratuity_section",
   "enable_gratuity_calculation",
   "gratuity_tax_exemption_date",
@@ -71,6 +75,7 @@
   "salary_bank_split_by",
   "salary_bank_accounts_section",
   "salary_bank_accounts",
+  "other_settings_section",
   "enable_work_management_link",
   "cba_applicable"
  ],
@@ -162,6 +167,31 @@
    "mandatory_depends_on": "eval:doc.enable_leave_travelling_allowance",
    "non_negative": 1,
    "precision": "1"
+  },
+  {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "fieldname": "lta_tables_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "description": "Pay a different LTA Amount to employees in a particular Grade or Department.",
+   "fieldname": "lta_amount_overrides",
+   "fieldtype": "Table",
+   "label": "LTA Amount by Grade or Department",
+   "options": "LTA Amount Rule"
+  },
+  {
+   "fieldname": "column_break_lta_tables",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.enable_leave_travelling_allowance",
+   "description": "Employees in this Grade or Department never receive Leave Travelling Allowance.",
+   "fieldname": "lta_blocked_grades_departments",
+   "fieldtype": "Table",
+   "label": "LTA Not Available To (Grade or Department)",
+   "options": "LTA Eligibility Block"
   },
   {
    "fieldname": "gratuity_section",
@@ -549,6 +579,11 @@
    "options": "Payroll Salary Bank",
    "depends_on": "enable_salary_bank_split",
    "description": "Which of the company's accounts pays each group. What decides the group is set above."
+  },
+  {
+   "fieldname": "other_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Other Settings"
   },
   {
    "default": "0",

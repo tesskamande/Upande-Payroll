@@ -11,6 +11,8 @@ class CompanyPayrollSettings(Document):
 	def validate(self):
 		self._validate_salary_bank_split()
 		self.validate_overtime_department_working_hours()
+		self.validate_lta_amount_overrides()
+		self.validate_lta_blocked_grades_departments()
 		self.validate_terminal_dues_notice_period_rules()
 		self.validate_statutory_income_component_mapping()
 		self.validate_payroll_dimension_source()
@@ -25,6 +27,44 @@ class CompanyPayrollSettings(Document):
 					f"Department Working Hours Overrides (row {row.idx})."
 				)
 			seen.add(row.department)
+
+	def validate_lta_amount_overrides(self):
+		self._validate_lta_table("lta_amount_overrides", "Amount Overrides")
+
+	def validate_lta_blocked_grades_departments(self):
+		self._validate_lta_table("lta_blocked_grades_departments", "LTA Not Available To")
+
+	def _validate_lta_table(self, fieldname, label):
+		"""Each row names exactly one of Employee Grade or Department - never
+		both, never neither - the same shape as Deduction Priority Detail's
+		Salary Component/Loan Product pair, enforced here as well as by the
+		row's own read_only_depends_on (that only governs the form; an API or
+		import write still needs this).
+
+		Nothing here stops a Grade-keyed row and a Department-keyed row from
+		both matching the same employee - leave_travelling_allowance.py's
+		_matching_row() raises on that when it actually happens, since it can
+		only be known once it is resolved against a real employee.
+		"""
+		seen = set()
+		for row in self.get(fieldname) or []:
+			if row.employee_grade and row.department:
+				frappe.throw(
+					f"Row {row.idx} of {label} names both an Employee Grade and a "
+					f"Department - set one or the other, not both."
+				)
+			if not row.employee_grade and not row.department:
+				frappe.throw(
+					f"Row {row.idx} of {label} needs an Employee Grade or a "
+					f"Department - a rule that matches nothing is not a rule."
+				)
+			key = ("grade", row.employee_grade) if row.employee_grade else ("department", row.department)
+			if key in seen:
+				frappe.throw(
+					f"Row {row.idx} of {label} repeats a Grade or Department "
+					f"already used in an earlier row."
+				)
+			seen.add(key)
 
 	def validate_terminal_dues_notice_period_rules(self):
 		rows = sorted(
