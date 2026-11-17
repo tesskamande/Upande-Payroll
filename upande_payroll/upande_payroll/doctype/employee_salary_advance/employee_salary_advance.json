@@ -152,7 +152,6 @@
   {
    "allow_on_submit": 1,
    "default": "1",
-   "description": "Payroll only claims an instalment while this is ticked. Untick to suspend recovery - unpaid leave, or an advance being repaid outside payroll - without cancelling the advance.",
    "fieldname": "repay_from_salary",
    "fieldtype": "Check",
    "in_standard_filter": 1,
@@ -178,11 +177,12 @@
    "read_only": 1
   },
   {
-   "description": "Deduction component the instalment appears as on the salary slip.",
+   "fetch_from": "advance_type.salary_component",
    "fieldname": "salary_component",
    "fieldtype": "Link",
    "label": "Salary Component",
    "options": "Salary Component",
+   "read_only": 1,
    "reqd": 1
   },
   {

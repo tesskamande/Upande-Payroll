@@ -20,7 +20,6 @@ class EmployeeSalaryAdvanceType(Document):
 	def validate(self):
 		self._validate_interest()
 		self._validate_component()
-		self._warn_unset_limits()
 
 	def _validate_interest(self):
 		"""A rate is part of charging interest, not an optional extra.
@@ -55,29 +54,3 @@ class EmployeeSalaryAdvanceType(Document):
 					frappe.bold(self.salary_component), component_type or _("unset")
 				)
 			)
-
-	def _warn_unset_limits(self):
-		"""Say out loud which limits are not being enforced.
-
-		A blank limit means the check does not run. That is deliberate - the
-		alternative is inventing a ceiling nobody agreed to - but it should
-		never be a surprise, so the gap is named at the point it is created
-		rather than discovered later on an advance that sailed through.
-		"""
-		unset = [
-			_(self.meta.get_label(fieldname))
-			for fieldname in ("max_advance_amount", "max_repayment_periods",
-							  "max_active_advances", "max_total_exposure",
-							  "max_catch_up_amount")
-			if flt(self.get(fieldname)) <= 0
-		]
-		if not unset:
-			return
-
-		frappe.msgprint(
-			_("Not enforced for this advance type: {0}. Advances will be "
-			  "accepted whatever their size, term or number. Set a value for "
-			  "any limit you want checked.").format(", ".join(unset)),
-			title=_("Limits not set"),
-			indicator="orange",
-		)

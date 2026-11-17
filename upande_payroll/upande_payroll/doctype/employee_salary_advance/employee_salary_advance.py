@@ -31,9 +31,15 @@ WEEK_ANCHORS = (7, 14, 21)
 
 
 def _due_date(start, index, frequency):
-	"""When the index-th period (0-based) falls due."""
+	"""When the index-th period (0-based) falls due.
+
+	Monthly keeps the day of month Repayment Start Date was set to - add_months
+	clamps it to the last real day of a shorter month (31 -> 28/29/30) rather
+	than erroring, so a plan started on the 31st is the only one that ever
+	lands on month-end.
+	"""
 	if (frequency or "Monthly") != "Weekly":
-		return get_last_day(add_months(start, index))
+		return add_months(start, index)
 	return _weekly_due(start, index)
 
 
