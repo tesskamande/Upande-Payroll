@@ -97,12 +97,14 @@ def get_oldest_overdue_demand(loans, as_on):
 
 def build_rows(loans, overdue_data, as_on):
 	oldest, overdue_outstanding = overdue_data
+	use_actual_balance = "loan_customizations" in frappe.get_installed_apps()
+
 	rows = []
 	for loan in loans:
 		overdue_since = oldest.get(loan.name)
 		days_overdue = (as_on - overdue_since).days if overdue_since else 0
 		bucket = _bucket_for(days_overdue)
-		outstanding = round(flt(loan.disbursed_amount) - flt(loan.total_amount_paid), 2)
+		outstanding = round(_true_outstanding(loan, use_actual_balance), 2)
 
 		rows.append({
 			"loan": loan.name,
@@ -116,6 +118,27 @@ def build_rows(loans, overdue_data, as_on):
 			"bucket": bucket,
 		})
 	return rows
+
+
+def _true_outstanding(loan, use_actual_balance):
+	"""What is actually still owed - principal and interest, net of whatever
+	has already been paid or written off.
+
+	disbursed_amount - total_amount_paid (the old formula here) only works
+	while a loan is paid exactly to schedule - a lump sum that overshoots the
+	demand actually due, or any write-off, throws it off: it has gone negative
+	on real data (an "overpaid" loan reading as a negative balance while still
+	flagged overdue from a stale Loan Demand). loan_customizations tracks the
+	real balance through every repayment, off-schedule or not, via
+	_get_actual_outstanding - the same figure Loan Book and the refinance
+	mechanism already trust - so this prefers that wherever it is installed,
+	and only falls back to the plain formula where it is not (a site running
+	lending without this app has nothing else to go on).
+	"""
+	if use_actual_balance:
+		from loan_customizations.overrides.loan_repayment_override import _get_actual_outstanding
+		return flt(_get_actual_outstanding(loan.name))
+	return flt(loan.disbursed_amount) - flt(loan.total_amount_paid)
 
 
 def _bucket_for(days_overdue):
