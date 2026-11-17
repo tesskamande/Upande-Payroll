@@ -113,10 +113,11 @@
   {
    "depends_on": "eval:doc.enable_leave_encashment_calculation",
    "fieldname": "leave_encashment_divisor",
-   "fieldtype": "Int",
+   "fieldtype": "Float",
    "label": "Leave Encashment Divisor",
    "mandatory_depends_on": "eval:doc.enable_leave_encashment_calculation",
-   "non_negative": 1
+   "non_negative": 1,
+   "precision": "2"
   },
   {
    "fieldname": "lta_section",
@@ -303,10 +304,11 @@
    "depends_on": "eval:doc.enable_terminal_dues_calculation",
    "description": "How many days to divide monthly basic pay by to get a day's pay.",
    "fieldname": "terminal_dues_divisor",
-   "fieldtype": "Int",
+   "fieldtype": "Float",
    "label": "Daily Rate Divisor",
    "mandatory_depends_on": "eval:doc.enable_terminal_dues_calculation",
-   "non_negative": 1
+   "non_negative": 1,
+   "precision": "2"
   },
   {
    "fieldname": "column_break_td",
@@ -496,10 +498,11 @@
    "depends_on": "eval:doc.enable_leave_provision",
    "description": "Basic pay is divided by this to get a day's pay. Keep it the same as your leave encashment divisor, or you will provide for less than you would actually pay out.",
    "fieldname": "leave_provision_divisor",
-   "fieldtype": "Int",
+   "fieldtype": "Float",
    "label": "Daily Rate Divisor",
    "mandatory_depends_on": "eval:doc.enable_leave_provision",
-   "non_negative": 1
+   "non_negative": 1,
+   "precision": "2"
   },
   {
    "default": "PAYE Only",

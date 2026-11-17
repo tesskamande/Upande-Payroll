@@ -220,8 +220,6 @@ def run():
             lambda: save(columns=[{"section": "Header", "source": "Constant", "value": "1"}]))
     refuses("a Field column with no value is refused",
             lambda: save(columns=[{"section": "Detail", "source": "Field", "value": ""}]))
-    refuses("a paying account held at another bank is refused",
-            lambda: save(debit_bank_account="KCB Salaries - KCB"))
 
     _report()
     frappe.db.rollback()

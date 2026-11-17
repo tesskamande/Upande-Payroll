@@ -106,9 +106,10 @@
   {
    "description": "Set in Company Payroll Settings for this company.",
    "fieldname": "divisor",
-   "fieldtype": "Int",
+   "fieldtype": "Float",
    "label": "Daily Rate Divisor",
    "non_negative": 1,
+   "precision": "2",
    "read_only": 1
   },
   {

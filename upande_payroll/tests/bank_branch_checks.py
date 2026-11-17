@@ -100,6 +100,52 @@ def run():
             f"{kcb} - Moi Avenue Branch",
         )
 
+    # --- resolving a plain branch name on import ------------------------
+    # custom_bank_branch_name is the staging field an import maps its raw
+    # branch text onto; resolve_bank_branch() turns it into the real Bank
+    # Branch Link, scoped to the employee's own Bank since the same branch
+    # name is reused across banks.
+    if employee:
+        from upande_payroll.bank_branch_utils import resolve_bank_branch
+
+        probe = frappe.get_doc("Employee", emp)
+        probe.bank_name = kcb
+        probe.custom_bank_branch = None
+        probe.custom_bank_branch_name = "Moi Avenue Branch"
+        resolve_bank_branch(probe)
+        check(
+            "a plain branch name resolves against the employee's own bank",
+            probe.custom_bank_branch, moi.name,
+        )
+        check("the staging field is cleared once resolved", probe.custom_bank_branch_name, None)
+
+        refuses(
+            "an unknown branch name is refused, not silently created",
+            lambda: resolve_bank_branch(
+                frappe._dict(bank_name=kcb, custom_bank_branch_name="Nowhere At All")
+            ),
+        )
+
+        refuses(
+            "a branch that exists, but under a different bank, is refused",
+            lambda: resolve_bank_branch(
+                # "Moi Avenue" only exists under absa (twin) - kcb's branch of
+                # that name was renamed above.
+                frappe._dict(bank_name=kcb, custom_bank_branch_name="Moi Avenue")
+            ),
+        )
+
+        refuses(
+            "a branch name with no Bank set yet is refused, not guessed",
+            lambda: resolve_bank_branch(
+                frappe._dict(bank_name=None, custom_bank_branch_name="Moi Avenue Branch")
+            ),
+        )
+
+        untouched = frappe._dict(bank_name=kcb, custom_bank_branch=twin.name, custom_bank_branch_name=None)
+        resolve_bank_branch(untouched)
+        check("a blank staging field leaves the real Link field alone", untouched.custom_bank_branch, twin.name)
+
     # --- a code correction is not a rename ------------------------------
     moi.branch_code = "101"
     moi.save()

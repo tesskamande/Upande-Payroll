@@ -44,6 +44,10 @@ fixtures = [
 				# and EFT files. Employee.branch is not this - that is the
 				# company's own branch, from module Setup.
 				"custom_bank_branch",
+				# Import-only staging field: a plain branch name, resolved
+				# against the employee's own Bank into custom_bank_branch on
+				# save - see bank_branch_utils.resolve_bank_branch().
+				"custom_bank_branch_name",
 				# M-Pesa as a Salary Mode needs the number the money goes to.
 				"custom_mpesa_number",
 				# Its own section in the Salary tab, right after Terminal
@@ -370,6 +374,7 @@ doctype_list_js = {
 doc_events = {
 	"Employee": {
 		"validate": [
+			"upande_payroll.bank_branch_utils.resolve_bank_branch",
 			"upande_payroll.cba_utils.validate_basic_pay_against_cba",
 			"upande_payroll.kenya_statutory_calculator.sync_personal_relief_method",
 		],
